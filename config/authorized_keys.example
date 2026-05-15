@@ -1,0 +1,3 @@
+# One SSH public key per line.
+# Copy to config/authorized_keys or let ssh-hardening.sh prompt for keys.
+ssh-ed25519 AAAA... user@example
