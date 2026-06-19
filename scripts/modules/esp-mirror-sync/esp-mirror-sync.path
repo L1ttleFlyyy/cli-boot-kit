@@ -1,0 +1,17 @@
+[Unit]
+Description=Watch the primary EFI System Partition for mirror updates
+Documentation=file:/usr/local/sbin/esp-mirror-sync
+ConditionPathIsMountPoint=/boot/efi
+ConditionPathExists=/boot/efi/EFI
+RequiresMountsFor=/boot/efi
+
+[Path]
+PathChanged=/boot/efi/EFI
+PathChanged=/boot/efi/EFI/BOOT
+PathChanged=/boot/efi/EFI/fedora
+Unit=esp-mirror-sync.service
+TriggerLimitIntervalSec=2min
+TriggerLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target

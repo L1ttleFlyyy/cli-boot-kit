@@ -1,0 +1,10 @@
+[Unit]
+Description=Mirror the primary EFI System Partition to the backup ESP
+Documentation=file:/usr/local/sbin/esp-mirror-sync
+ConditionPathIsMountPoint=/boot/efi
+RequiresMountsFor=/boot/efi
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/esp-mirror-sync sync
+TimeoutStartSec=3min

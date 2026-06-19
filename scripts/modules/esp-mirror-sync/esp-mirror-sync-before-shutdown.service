@@ -1,0 +1,15 @@
+[Unit]
+Description=Mirror the primary ESP before shutdown
+Documentation=file:/usr/local/sbin/esp-mirror-sync
+DefaultDependencies=no
+ConditionPathIsMountPoint=/boot/efi
+RequiresMountsFor=/boot/efi
+Before=shutdown.target reboot.target halt.target poweroff.target kexec.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/esp-mirror-sync sync
+TimeoutStartSec=3min
+
+[Install]
+WantedBy=shutdown.target reboot.target halt.target poweroff.target kexec.target

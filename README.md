@@ -71,6 +71,7 @@ sudo ./scripts/modules/chezmoi.sh --dry-run
 sudo ./scripts/modules/zsh.sh --dry-run
 sudo ./scripts/modules/tailscale.sh --dry-run --netdev enp2s0
 sudo ./scripts/modules/router-sysctl.sh --dry-run
+sudo ./scripts/modules/esp-mirror-sync.sh --dry-run
 ```
 
 Recommended order and dependencies:
@@ -85,6 +86,7 @@ Recommended order and dependencies:
 | `zsh.sh` | `zsh` | Should run after DNF essentials and after chezmoi dotfiles are applied. |
 | `tailscale.sh` | `curl`, `dnf`, optional `--netdev` | Optional. Installs Tailscale if missing, installs `ethtool`, enables `tailscaled`, then calls the exit-node setup script. |
 | `router-sysctl.sh` | `sysctl` | Optional and independent. Keep separate from Tailscale exit-node forwarding. |
+| `esp-mirror-sync.sh` | `/boot/efi`, second ESP UUID | Optional and host-specific. Installs an idempotent ESP mirror sync helper plus a systemd path watcher. See `docs/esp-mirror-sync.md`. |
 
 For a new server, prefer the top-level runner instead of manually composing
 modules unless you are debugging a specific step.
