@@ -15,7 +15,7 @@ elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
 fi
 
 main() {
-    require_fedora
+    require_supported_os
     require_command curl
     require_command bash
 
@@ -32,17 +32,14 @@ main() {
         return 0
     fi
 
+    # shellcheck disable=SC2016  # $() is intentionally evaluated later by run_eval
+    local install_cmd='NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+
     log "Installing Homebrew for Linux as $user"
-    if [ "$DRY_RUN" = "yes" ]; then
-        if [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
-            show_command_text "sudo -H -u $user bash -lc 'NONINTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"'"
-        else
-            show_command_text "NONINTERACTIVE=1 /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-        fi
-    elif [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
-        sudo -H -u "$user" bash -lc 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    if [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
+        run_eval "sudo -H -u $user bash -lc '$install_cmd'"
     else
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        run_eval "$install_cmd"
     fi
 }
 

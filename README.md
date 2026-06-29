@@ -1,128 +1,130 @@
-# Fedora Server Setup
+# cli-boot-kit
 
-Reusable Fedora Server bootstrap scripts for a home server.
+Reusable, modular bootstrap for converging a fresh Linux server to a
+repeatable CLI-first environment. Supports **Fedora** and **Debian/Ubuntu**
+from the same high-level flow; platform differences live in the OS abstraction
+(`scripts/lib/os.sh`).
 
-The current setup is modular:
+Each module is idempotent and supports `--dry-run`, so you can preview every
+command before applying. The historical single-shot scripts are archived under
+`docs/archive/`.
 
-- Required: DNF essentials, SSH hardening, Homebrew, Brewfile packages, chezmoi,
-  and zsh as the login shell.
-- Optional: Tailscale exit-node setup and router-oriented kernel parameters.
-- Deferred: broad firewall hardening and fail2ban.
+## Before you start (cloud hosts)
 
-Historical reference from the old Debian/Ubuntu script is archived at:
+The SSH module moves the daemon to port `60022`. On a cloud instance, **open
+`60022/tcp` in the provider security group (and keep `22` until you confirm the
+new port works)** before running the bootstrap, or you can lock yourself out.
 
-```text
-docs/archive/setup_server.old-debian-ubuntu.sh
-```
-
-## Bootstrap A New Fedora Server
-
-Review the full flow:
+Create your SSH key list first (otherwise the SSH module prompts for keys):
 
 ```bash
-sudo ./scripts/bootstrap-fedora-server.sh --dry-run --netdev enp2s0
+cp config/authorized_keys.example config/authorized_keys
+# edit config/authorized_keys, one public key per line
+```
+
+The real `config/authorized_keys` is gitignored so access lists are never
+published.
+
+## Bootstrap a new server
+
+Preview the full flow (safe, no changes):
+
+```bash
+sudo ./scripts/bootstrap.sh --dry-run
 ```
 
 Run the interactive bootstrap:
 
 ```bash
-sudo ./scripts/bootstrap-fedora-server.sh --netdev enp2s0
+sudo ./scripts/bootstrap.sh
 ```
 
-If this server should advertise itself as a Tailscale exit node:
+If this host should advertise itself as a Tailscale exit node:
 
 ```bash
-sudo ./scripts/bootstrap-fedora-server.sh --netdev enp2s0 --advertise-exit-node
+sudo ./scripts/bootstrap.sh --netdev eth0 --advertise-exit-node
 ```
 
-The runner shows numbered progress steps, prompts before optional router settings
-and rebooting, and rings the terminal bell before interactive prompts when the
-terminal supports it. Set `NO_COLOR=1` to force plain-text output.
+Run via `sudo` from the **target login user** (e.g. the cloud image's default
+`ubuntu`). The bootstrap does not create users; it configures whichever user
+invoked `sudo`. The runner shows numbered steps, prompts before optional
+Tailscale/router steps and reboot, and rings the terminal bell before prompts.
+Set `NO_COLOR=1` for plain output.
 
 ## Config
 
-SSH defaults live in:
-
-```text
-config/ssh.env
-config/authorized_keys.example
-```
-
-Create `config/authorized_keys` locally before running the SSH module, or let
-the module prompt for keys on its first real run. The real file is gitignored so
-SSH access lists are not published with the repository.
-
-Homebrew packages live in:
-
-```text
-Brewfile
-```
+| File | Purpose |
+| --- | --- |
+| `config/defaults.env` | Timezone, chezmoi repo, trusted tailnet CIDR, dev-tool toggles. |
+| `config/ssh.env` | `SSH_PORT` (default `60022`). |
+| `config/authorized_keys` | SSH public keys (gitignored; created from the example). |
+| `Brewfile` | Cross-platform CLI tools installed via Homebrew. |
 
 ## Modules
 
-Each module can be run directly:
+Every module runs standalone with `--dry-run`:
 
 ```bash
-sudo ./scripts/modules/dnf-essentials.sh --dry-run
+sudo ./scripts/modules/base-packages.sh --dry-run
 sudo ./scripts/modules/ssh-hardening.sh --dry-run
+sudo ./scripts/modules/firewall.sh --dry-run
+sudo ./scripts/modules/fail2ban.sh --dry-run
 sudo ./scripts/modules/homebrew.sh --dry-run
 sudo ./scripts/modules/brew-bundle.sh --dry-run
 sudo ./scripts/modules/chezmoi.sh --dry-run
 sudo ./scripts/modules/zsh.sh --dry-run
-sudo ./scripts/modules/tailscale.sh --dry-run --netdev enp2s0
+sudo ./scripts/modules/bubblewrap.sh --dry-run
+sudo ./scripts/modules/developer-tools.sh --dry-run
+sudo ./scripts/modules/tailscale.sh --dry-run --netdev eth0
 sudo ./scripts/modules/router-sysctl.sh --dry-run
 sudo ./scripts/modules/esp-mirror-sync.sh --dry-run
 ```
 
-Recommended order and dependencies:
+Recommended order and platform behavior:
 
-| Module | Depends on | Notes |
-| --- | --- | --- |
-| `dnf-essentials.sh` | Fedora + `dnf` | Run first. Installs `git`, `zsh`, `curl`, `file`, `procps-ng`, `gcc`, `gcc-c++`, and `make`. |
-| `ssh-hardening.sh` | `config/ssh.env`, `config/authorized_keys` | Installs its own SSH/SELinux packages, configures SELinux for port `60022`, writes the SSH drop-in, and opens firewalld if active. |
-| `homebrew.sh` | `curl`, `bash` | Should run after DNF essentials on a new host. Installs Linuxbrew as the target sudo user. |
-| `brew-bundle.sh` | Homebrew, `Brewfile` | Must run after `homebrew.sh`. |
-| `chezmoi.sh` | `git`, `chezmoi` | Should run after DNF essentials. Installs `chezmoi` with DNF if missing. |
-| `zsh.sh` | `zsh` | Should run after DNF essentials and after chezmoi dotfiles are applied. |
-| `tailscale.sh` | `curl`, `dnf`, optional `--netdev` | Optional. Installs Tailscale if missing, installs `ethtool`, enables `tailscaled`, then calls the exit-node setup script. |
-| `router-sysctl.sh` | `sysctl` | Optional and independent. Keep separate from Tailscale exit-node forwarding. |
-| `esp-mirror-sync.sh` | `/boot/efi`, second ESP UUID | Optional and host-specific. Installs an idempotent ESP mirror sync helper plus a systemd path watcher. See `docs/esp-mirror-sync.md`. |
+| Module | Fedora | Debian/Ubuntu | Notes |
+| --- | --- | --- | --- |
+| `base-packages.sh` | dnf, `procps-ng gcc gcc-c++ make` | apt, `procps build-essential` | Run first. |
+| `ssh-hardening.sh` | SELinux `ssh_port_t`, firewalld, restart `sshd` | no SELinux, ufw rule, restart `ssh.socket` | Reads `ssh.env` + `authorized_keys`. |
+| `firewall.sh` | firewalld baseline | ufw default-deny, allow `SSH_PORT` then enable | Allows SSH before enabling to avoid lockout. |
+| `fail2ban.sh` | `fail2ban-firewalld`, firewalld action | `banaction = ufw` | sshd jail on `SSH_PORT`; ignores tailnet. |
+| `homebrew.sh` | Linuxbrew as target user | same | After base packages. |
+| `brew-bundle.sh` | `Brewfile` | same | After Homebrew. |
+| `chezmoi.sh` | dnf `chezmoi` if missing | official installer / Homebrew | Applies `CHEZMOI_REPO`. |
+| `zsh.sh` | sets login shell | same | After dotfiles. |
+| `bubblewrap.sh` | dnf `bubblewrap` | apt + AppArmor `bwrap-userns-restrict` | Verifies `bwrap`. Codex sandbox dep. |
+| `developer-tools.sh` | official installers | same | Claude Code + Codex into `~/.local`. |
+| `tailscale.sh` | official installer + `ethtool` | same | Optional. Installs but leaves node unauthenticated. |
+| `router-sysctl.sh` | sysctl (bbr/fq/...) | same | Optional, independent. |
+| `esp-mirror-sync.sh` | dual-ESP mirror | dual-ESP mirror | Optional, host-specific. See `docs/esp-mirror-sync.md`. |
 
-For a new server, prefer the top-level runner instead of manually composing
-modules unless you are debugging a specific step.
+## Tailscale exit node
 
-## Tailscale Exit Node Networking
-
-Apply only the Tailscale exit-node networking module:
-
-```bash
-sudo ./scripts/setup-tailscale-exit-node.sh --apply --netdev enp2s0
-```
-
-Also advertise the machine as a Tailscale exit node:
+Apply only the exit-node networking module:
 
 ```bash
-sudo ./scripts/setup-tailscale-exit-node.sh --apply --netdev enp2s0 --advertise-exit-node
+sudo ./scripts/setup-tailscale-exit-node.sh --apply --netdev eth0 --advertise-exit-node
 ```
 
-After advertising, approve the exit node in the Tailscale admin console:
+After advertising, approve the exit node in the Tailscale admin console
+(Machines → this host → route settings → enable "Use as exit node").
 
-1. Open the Machines page.
-2. Select this machine.
-3. Open route settings.
-4. Enable "Use as exit node".
+Tailscale registration (`tailscale up`) is intentionally manual and outside the
+bootstrap.
 
 ## Verify
 
 ```bash
 sshd -t
 ss -lntp | grep ':60022'
-semanage port -l | grep ssh_port_t
+sudo ufw status verbose        # Debian/Ubuntu
+sudo firewall-cmd --list-all   # Fedora
+sudo fail2ban-client status sshd
 brew bundle check --file Brewfile
 chezmoi doctor
-sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
+bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true
+claude --version && codex --version
 systemctl status --no-pager tailscale-network-optimize.service
-sudo ethtool -k enp2s0 | grep -E 'rx-udp-gro-forwarding|rx-gro-list'
 tailscale status
 ```
 
@@ -130,7 +132,7 @@ tailscale status
 
 - Homebrew on Linux: https://docs.brew.sh/Homebrew-on-Linux
 - Homebrew Bundle: https://docs.brew.sh/Brew-Bundle-and-Brewfile
-- Tailscale performance best practices:
-  https://tailscale.com/docs/reference/best-practices/performance
-- Tailscale exit node setup:
-  https://tailscale.com/docs/features/exit-nodes/how-to/setup
+- Claude Code install: https://code.claude.com/docs/en/setup
+- Codex CLI: https://github.com/openai/codex
+- Tailscale performance: https://tailscale.com/docs/reference/best-practices/performance
+- Tailscale exit node: https://tailscale.com/docs/features/exit-nodes/how-to/setup

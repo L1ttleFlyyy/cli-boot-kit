@@ -18,8 +18,7 @@ main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
-    require_fedora
-    require_command dnf
+    require_supported_os
     require_command systemctl
 
     local root
@@ -40,12 +39,58 @@ main() {
     [ -n "$user_home" ] || die "cannot determine home directory for $user"
     ensure_authorized_keys "$keys_file"
 
-    log "Installing SSH/SELinux helpers"
-    run dnf install -y openssh-server policycoreutils-python-utils
+    log "Installing OpenSSH server"
+    if is_fedora; then
+        pkg_install openssh-server policycoreutils-python-utils
+    else
+        pkg_install openssh-server
+    fi
 
     log "Installing authorized keys for $user"
     run install -d -m 700 -o "$user" -g "$group" "$user_home/.ssh"
     run install -m 600 -o "$user" -g "$group" "$keys_file" "$user_home/.ssh/authorized_keys"
+
+    configure_selinux_port "$ssh_port"
+
+    log "Writing OpenSSH hardening drop-in"
+    run install -d -m 755 /etc/ssh/sshd_config.d
+    write_file /etc/ssh/sshd_config.d/10-cli-boot-kit.conf <<EOF
+# Managed by cli-boot-kit/scripts/modules/ssh-hardening.sh
+Port ${ssh_port}
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+MaxAuthTries 3
+LoginGraceTime 20
+X11Forwarding no
+UsePAM yes
+EOF
+
+    log "Opening SSH port $ssh_port in the firewall"
+    firewall_allow_port "$ssh_port" tcp
+
+    log "Validating and restarting SSH"
+    run sshd -t
+    if ssh_socket_activated; then
+        # Debian/Ubuntu: systemd-ssh-generator derives the socket port from the
+        # sshd_config Port directive, so reload then restart ssh.socket.
+        run systemctl daemon-reload
+        run systemctl enable ssh.socket
+        run systemctl restart ssh.socket
+    else
+        run systemctl enable "$(ssh_unit)"
+        run systemctl restart "$(ssh_unit)"
+    fi
+}
+
+configure_selinux_port() {
+    local ssh_port="$1"
+
+    if ! is_fedora && ! has_semanage; then
+        info "SELinux not in use; skipping ssh_port_t configuration"
+        return 0
+    fi
 
     log "Allowing SSH port $ssh_port in SELinux"
     if [ "$DRY_RUN" = "yes" ]; then
@@ -57,40 +102,6 @@ main() {
     else
         semanage port -m -t ssh_port_t -p tcp "$ssh_port"
     fi
-
-    log "Writing OpenSSH hardening drop-in"
-    if [ "$DRY_RUN" = "yes" ]; then
-        show_command write /etc/ssh/sshd_config.d/10-fedora-server-setup.conf
-    else
-        install -d -m 755 /etc/ssh/sshd_config.d
-        cat > /etc/ssh/sshd_config.d/10-fedora-server-setup.conf <<EOF
-# Managed by fedora-server-setup/scripts/modules/ssh-hardening.sh
-Port ${ssh_port}
-PermitRootLogin no
-PubkeyAuthentication yes
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-MaxAuthTries 3
-LoginGraceTime 20
-X11Forwarding no
-UsePAM yes
-EOF
-    fi
-
-    log "Opening SSH port $ssh_port in firewalld when active"
-    if [ "$DRY_RUN" = "yes" ]; then
-        run firewall-cmd --permanent --add-port="${ssh_port}/tcp"
-        run firewall-cmd --reload
-    elif systemctl is-active --quiet firewalld; then
-        run firewall-cmd --permanent --add-port="${ssh_port}/tcp"
-        run firewall-cmd --reload
-    else
-        log "firewalld is not active; skipping firewall port update"
-    fi
-
-    run sshd -t
-    run systemctl enable sshd
-    run systemctl restart sshd
 }
 
 ensure_authorized_keys() {

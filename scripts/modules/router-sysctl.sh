@@ -23,18 +23,16 @@ main() {
     local target="/etc/sysctl.d/90-router-local.conf"
 
     log "Writing optional router sysctl settings"
-    if [ "$DRY_RUN" = "yes" ]; then
-        show_command write "$target"
-    else
-        cat > "$target" <<'EOF'
-# Managed by fedora-server-setup/scripts/modules/router-sysctl.sh
+    write_file "$target" <<'EOF'
+# Managed by cli-boot-kit/scripts/modules/router-sysctl.sh
 # Optional router-oriented settings. Keep separate from Tailscale exit-node
 # forwarding so they can be enabled only on hosts that need them.
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
 net.ipv6.conf.all.accept_ra = 2
 net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_fin_timeout = 15
 EOF
-    fi
 
     run sysctl --system
 }

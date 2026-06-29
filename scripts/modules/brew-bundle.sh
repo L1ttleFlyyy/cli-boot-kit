@@ -22,11 +22,7 @@ main() {
 
     if [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
         log "Installing Homebrew packages from Brewfile as $user"
-        if [ "$DRY_RUN" = "yes" ]; then
-            show_command_text "sudo -H -u $user bash -lc 'eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"; brew bundle --file \"$root/Brewfile\"'"
-        else
-            sudo -H -u "$user" bash -lc "eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"; brew bundle --file '$root/Brewfile'"
-        fi
+        run_eval "sudo -H -u $user bash -lc 'eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"; brew bundle --file \"$root/Brewfile\"'"
         return 0
     fi
 

@@ -64,6 +64,30 @@ run() {
     fi
 }
 
+# run_eval CMD — print CMD, then eval it on a real run. Use for pipelines,
+# redirections, or login-shell strings that the argv-form run() cannot express.
+# The same string is printed and executed, so dry-run cannot drift from apply.
+run_eval() {
+    show_command_text "$1"
+    if [ "${DRY_RUN:-no}" = "yes" ]; then
+        return 0
+    fi
+    eval "$1"
+}
+
+# write_file PATH — write stdin to PATH. Always prints "write PATH"; in dry-run
+# it also echoes the content (indented) and writes nothing. The heredoc piped in
+# is the single source for both modes, so the preview matches what gets written.
+write_file() {
+    local path="$1"
+    show_command_text "write $path"
+    if [ "${DRY_RUN:-no}" = "yes" ]; then
+        sed 's/^/    | /'
+        return 0
+    fi
+    cat > "$path"
+}
+
 show_command() {
     printf '\n%s+%s' "$COLOR_CYAN" "$COLOR_RESET"
     printf ' %q' "$@"
@@ -84,18 +108,6 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
-require_fedora() {
-    if [ ! -r /etc/os-release ]; then
-        die "cannot read /etc/os-release"
-    fi
-
-    # shellcheck disable=SC1091
-    . /etc/os-release
-    if [ "${ID:-}" != "fedora" ]; then
-        die "this setup targets Fedora; detected ID=${ID:-unknown}"
-    fi
-}
-
 target_user() {
     if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
         printf '%s\n' "$SUDO_USER"
@@ -107,6 +119,16 @@ target_user() {
 home_for_user() {
     local user="$1"
     getent passwd "$user" | cut -d: -f6
+}
+
+# Source config/defaults.env into the environment when present.
+load_defaults() {
+    local root
+    root="$(repo_root)"
+    if [ -r "$root/config/defaults.env" ]; then
+        # shellcheck disable=SC1091
+        . "$root/config/defaults.env"
+    fi
 }
 
 confirm() {
@@ -142,3 +164,7 @@ confirm() {
             ;;
     esac
 }
+
+# shellcheck source-path=scripts/lib
+# shellcheck source=os.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/os.sh"

@@ -10,7 +10,7 @@ DRY_RUN="no"
 if [ "${1:-}" = "--dry-run" ]; then
     DRY_RUN="yes"
 elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: dnf-essentials.sh [--dry-run]"
+    echo "Usage: base-packages.sh [--dry-run]"
     exit 0
 fi
 
@@ -18,22 +18,17 @@ main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
-    require_fedora
-    require_command dnf
+    require_supported_os
 
-    local packages=(
-        git
-        zsh
-        curl
-        file
-        procps-ng
-        gcc
-        gcc-c++
-        make
-    )
+    local packages
+    if is_fedora; then
+        packages=(git zsh curl file procps-ng gcc gcc-c++ make ca-certificates)
+    else
+        packages=(git zsh curl file procps build-essential ca-certificates)
+    fi
 
-    log "Installing Fedora essentials: ${packages[*]}"
-    run dnf install -y "${packages[@]}"
+    log "Installing base packages: ${packages[*]}"
+    pkg_install "${packages[@]}"
 }
 
 main "$@"

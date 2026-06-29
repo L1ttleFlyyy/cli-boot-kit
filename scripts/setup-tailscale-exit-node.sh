@@ -5,7 +5,7 @@ usage() {
     cat <<'USAGE'
 Usage: setup-tailscale-exit-node.sh [--dry-run] [--apply] [--netdev IFACE] [--advertise-exit-node]
 
-Configures Fedora networking for a Tailscale exit node.
+Configures Linux networking for a Tailscale exit node.
 
 Options:
   --dry-run              Show detected state and planned changes.
@@ -81,7 +81,7 @@ write_sysctl_config() {
     local target="/etc/sysctl.d/99-tailscale-exit-node.conf"
 
     cat > "$target" <<'EOF'
-# Managed by fedora-server-setup/scripts/setup-tailscale-exit-node.sh
+# Managed by cli-boot-kit/scripts/setup-tailscale-exit-node.sh
 # Required when this host advertises itself as a Tailscale exit node.
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1

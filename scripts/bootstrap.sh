@@ -10,13 +10,13 @@ DRY_RUN="no"
 ADVERTISE_EXIT_NODE="no"
 NETDEV=""
 STEP_CURRENT=0
-STEP_TOTAL=9
+STEP_TOTAL=14
 
 usage() {
     cat <<'USAGE'
-Usage: bootstrap-fedora-server.sh [--dry-run] [--netdev IFACE] [--advertise-exit-node]
+Usage: bootstrap.sh [--dry-run] [--netdev IFACE] [--advertise-exit-node]
 
-Interactive Fedora server bootstrap.
+Interactive cross-platform (Fedora / Debian-Ubuntu) server bootstrap.
 
 Options:
   --dry-run              Print actions without applying changes.
@@ -79,14 +79,33 @@ skip_step() {
     info "Skipped."
 }
 
+apply_timezone() {
+    next_step "timezone"
+    local tz="${TIMEZONE:-}"
+    if [ -z "$tz" ]; then
+        info "TIMEZONE is empty; skipping timezone management."
+        return 0
+    fi
+    if ! command -v timedatectl >/dev/null 2>&1; then
+        warn "timedatectl not available; skipping timezone management."
+        return 0
+    fi
+    log "Setting timezone to $tz"
+    run timedatectl set-timezone "$tz"
+}
+
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
-    require_fedora
-    require_command dnf
+    require_supported_os
+    if [ "$(pkg_manager)" = "none" ]; then
+        die "no supported package manager (dnf/apt-get) found"
+    fi
+    load_defaults
 
-    heading "Fedora server bootstrap"
+    heading "cli-boot-kit bootstrap"
+    info "Detected OS: ${OS_ID} ${OS_VERSION_ID}"
     info "Target user: $(target_user)"
     if [ "$(target_user)" = "root" ]; then
         die "run this via sudo from the target login user; this bootstrap does not create normal users"
@@ -95,12 +114,17 @@ main() {
         info "Mode: dry-run"
     fi
 
-    run_module dnf-essentials.sh
+    apply_timezone
+    run_module base-packages.sh
     run_module ssh-hardening.sh
+    run_module firewall.sh
+    run_module fail2ban.sh
     run_module homebrew.sh
     run_module brew-bundle.sh
     run_module chezmoi.sh
     run_module zsh.sh
+    run_module bubblewrap.sh
+    run_module developer-tools.sh
 
     if confirm "Run optional Tailscale setup?" "yes"; then
         local tailscale_args=()
@@ -122,7 +146,7 @@ main() {
     fi
 
     next_step "system update"
-    run dnf upgrade --refresh -y
+    system_upgrade
 
     if [ "$DRY_RUN" = "yes" ]; then
         success "Dry-run complete; reboot skipped."

@@ -40,20 +40,15 @@ main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
-    require_fedora
+    require_supported_os
     require_command curl
-    require_command dnf
 
     if ! command -v tailscale >/dev/null 2>&1; then
         log "Installing Tailscale using official installer"
-        if [ "$DRY_RUN" = "yes" ]; then
-            show_command_text "curl -fsSL https://tailscale.com/install.sh | sh"
-        else
-            curl -fsSL https://tailscale.com/install.sh | sh
-        fi
+        run_eval "curl -fsSL https://tailscale.com/install.sh | sh"
     fi
 
-    run dnf install -y ethtool
+    pkg_install ethtool
     run systemctl enable --now tailscaled
 
     local root
