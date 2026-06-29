@@ -6,61 +6,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 
-DRY_RUN="no"
-ADVERTISE_EXIT_NODE="no"
-NETDEV=""
 STEP_CURRENT=0
-STEP_TOTAL=15
+STEP_TOTAL=16
 
 usage() {
     cat <<'USAGE'
-Usage: bootstrap.sh [--dry-run] [--netdev IFACE] [--advertise-exit-node]
+Usage: bootstrap.sh <profile> [--dry-run]
 
-Interactive cross-platform (Fedora / Debian-Ubuntu) server bootstrap.
-
-Options:
-  --dry-run              Print actions without applying changes.
-  --netdev IFACE         Pass IFACE to the optional Tailscale exit-node setup.
-  --advertise-exit-node  If Tailscale is selected, advertise this host as an exit node.
-  -h, --help             Show this help.
+Cross-platform (Fedora / Debian-Ubuntu) server bootstrap. The profile
+(profiles/<name>.env) declares the host's target state, including which optional
+modules to run. Pass --dry-run to preview actions without applying them.
 USAGE
 }
 
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --dry-run)
-            DRY_RUN="yes"
-            ;;
-        --netdev)
-            [ "$#" -ge 2 ] || die "--netdev requires an interface name"
-            NETDEV="$2"
-            shift
-            ;;
-        --advertise-exit-node)
-            ADVERTISE_EXIT_NODE="yes"
-            ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        *)
-            die "unknown argument: $1"
-            ;;
-    esac
-    shift
-done
+parse_runtime_args "$@"
 
 run_module() {
     local module="$1"
     shift
 
-    local args=()
+    next_step "$module"
+    local args=("$PROFILE")
     if [ "$DRY_RUN" = "yes" ]; then
         args+=("--dry-run")
     fi
     args+=("$@")
-
-    next_step "$module"
     "$SCRIPT_DIR/modules/$module" "${args[@]}"
 }
 
@@ -102,9 +72,10 @@ main() {
     if [ "$(pkg_manager)" = "none" ]; then
         die "no supported package manager (dnf/apt-get) found"
     fi
-    load_defaults
+    load_profile "$PROFILE"
 
     heading "cli-boot-kit bootstrap"
+    info "Profile: ${PROFILE_NAME} (${PROFILE_PATH})"
     info "Detected OS: ${OS_ID} ${OS_VERSION_ID}"
     info "Target user: $(target_user)"
     if [ "$(target_user)" = "root" ]; then
@@ -126,26 +97,19 @@ main() {
     run_module bubblewrap.sh
     run_module developer-tools.sh
 
-    if confirm "Run optional Tailscale setup?" "yes"; then
-        local tailscale_args=()
-        if [ -n "$NETDEV" ]; then
-            tailscale_args+=("--netdev" "$NETDEV")
-        fi
-        if [ "$ADVERTISE_EXIT_NODE" = "yes" ]; then
-            tailscale_args+=("--advertise-exit-node")
-        fi
-        run_module tailscale.sh "${tailscale_args[@]}"
+    if [ "${INSTALL_TAILSCALE:-no}" = "yes" ]; then
+        run_module tailscale.sh
     else
         skip_step "tailscale.sh"
     fi
 
-    if confirm "Install Podman + Quadlet container toolchain?" "no"; then
+    if [ "${INSTALL_PODMAN_QUADLET:-no}" = "yes" ]; then
         run_module podman-quadlet.sh
     else
         skip_step "podman-quadlet.sh"
     fi
 
-    if confirm "Apply optional router kernel parameters?" "no"; then
+    if [ "${APPLY_ROUTER_SYSCTL:-no}" = "yes" ]; then
         run_module router-sysctl.sh
     else
         skip_step "router-sysctl.sh"
@@ -153,6 +117,14 @@ main() {
 
     next_step "system update"
     system_upgrade
+
+    next_step "verify"
+    if [ "$DRY_RUN" = "yes" ]; then
+        info "Dry-run: skipping verify.sh. After a real run: scripts/verify.sh $PROFILE"
+    else
+        "$SCRIPT_DIR/verify.sh" "$PROFILE" ||
+            warn "verify.sh reported failures; review the summary above before relying on this host."
+    fi
 
     if [ "$DRY_RUN" = "yes" ]; then
         success "Dry-run complete; reboot skipped."

@@ -6,24 +6,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: zsh.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: zsh.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
-    require_command chsh
-    require_command zsh
+    load_profile "$PROFILE"
 
+    local shell_name
     local shell_path
     local user
-    shell_path="$(command -v zsh)"
+    shell_name="${DEFAULT_SHELL:-zsh}"
+    require_command chsh
+    require_command "$shell_name"
+    shell_path="$(command -v "$shell_name")"
     user="$(target_user)"
 
     if ! grep -qxF "$shell_path" /etc/shells; then

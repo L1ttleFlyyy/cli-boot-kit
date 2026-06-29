@@ -6,13 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: ssh-hardening.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: ssh-hardening.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
@@ -30,9 +28,8 @@ main() {
     root="$(repo_root)"
     keys_file="$root/config/authorized_keys"
 
-    # shellcheck disable=SC1091
-    . "$root/config/ssh.env"
-    ssh_port="${SSH_PORT:?SSH_PORT must be set in config/ssh.env}"
+    load_profile "$PROFILE"
+    ssh_port="${SSH_PORT:?SSH_PORT must be set in the profile or config/ssh.env}"
     user="$(target_user)"
     group="$(id -gn "$user")"
     user_home="$(home_for_user "$user")"

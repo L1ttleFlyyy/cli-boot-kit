@@ -6,13 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: bubblewrap.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: bubblewrap.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 PROFILE_SRC="/usr/share/apparmor/extra-profiles/bwrap-userns-restrict"
 PROFILE_DST="/etc/apparmor.d/bwrap-userns-restrict"
@@ -22,6 +20,7 @@ main() {
         require_root
     fi
     require_supported_os
+    load_profile "$PROFILE"
 
     log "Installing bubblewrap"
     if is_fedora; then

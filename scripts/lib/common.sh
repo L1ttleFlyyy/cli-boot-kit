@@ -131,6 +131,71 @@ load_defaults() {
     fi
 }
 
+# load_profile NAME — establish the host's declared target state.
+# Layered: config/defaults.env + config/ssh.env provide fallback baselines, then
+# profiles/<NAME>.env overlays on top (highest precedence). NAME may be a bare
+# profile name (resolved under profiles/) or an explicit path (contains / or .env).
+# shellcheck disable=SC2034  # PROFILE_NAME/PROFILE_PATH consumed by callers
+load_profile() {
+    local name="${1:-}"
+    [ -n "$name" ] || die "load_profile: missing profile name"
+
+    local root path
+    root="$(repo_root)"
+
+    # Fallback baselines (lowest precedence).
+    load_defaults
+    if [ -r "$root/config/ssh.env" ]; then
+        # shellcheck disable=SC1091
+        . "$root/config/ssh.env"
+    fi
+
+    case "$name" in
+        */*|*.env) path="$name" ;;
+        *) path="$root/profiles/$name.env" ;;
+    esac
+    [ -r "$path" ] || die "profile not found: $path (expected profiles/<name>.env)"
+
+    # Profile overlay (highest precedence).
+    # shellcheck disable=SC1090
+    . "$path"
+    PROFILE_NAME="$name"
+    PROFILE_PATH="$path"
+}
+
+# parse_runtime_args "$@" — populate PROFILE and DRY_RUN from the uniform
+# "<profile> [--dry-run]" CLI shared by every script. The caller must define a
+# usage() function for -h/--help.
+PROFILE=""
+parse_runtime_args() {
+    PROFILE=""
+    DRY_RUN="no"
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --dry-run)
+                DRY_RUN="yes"
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -*)
+                die "unknown option: $1 (usage: $(basename "$0") <profile> [--dry-run])"
+                ;;
+            *)
+                if [ -z "$PROFILE" ]; then
+                    PROFILE="$1"
+                else
+                    die "unexpected argument: $1"
+                fi
+                ;;
+        esac
+        shift
+    done
+    [ -n "$PROFILE" ] ||
+        die "missing required <profile> argument; e.g. $(basename "$0") ubuntu-gen [--dry-run]"
+}
+
 confirm() {
     local prompt="$1"
     local default="${2:-yes}"

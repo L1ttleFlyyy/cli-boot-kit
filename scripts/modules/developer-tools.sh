@@ -6,13 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: developer-tools.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: developer-tools.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 # Both installers write into the target user's ~/.local; they must run as that
 # user, never as root.
@@ -57,7 +55,7 @@ install_tool() {
 main() {
     require_supported_os
     require_command curl
-    load_defaults
+    load_profile "$PROFILE"
 
     local user
     user="$(target_user)"

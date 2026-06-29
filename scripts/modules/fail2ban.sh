@@ -6,13 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: fail2ban.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: fail2ban.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
@@ -20,16 +18,12 @@ main() {
     fi
     require_supported_os
     require_command systemctl
-    load_defaults
+    load_profile "$PROFILE"
 
-    local root
     local ssh_port
     local banaction
     local tailnet
-    root="$(repo_root)"
-    # shellcheck disable=SC1091
-    . "$root/config/ssh.env"
-    ssh_port="${SSH_PORT:?SSH_PORT must be set in config/ssh.env}"
+    ssh_port="${SSH_PORT:?SSH_PORT must be set in the profile or config/ssh.env}"
     tailnet="${TRUSTED_TAILNET_CIDR:-100.64.0.0/10}"
 
     log "Installing fail2ban"

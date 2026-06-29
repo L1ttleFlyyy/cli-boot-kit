@@ -6,18 +6,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: podman-quadlet.sh [--dry-run]"
+usage() {
+    echo "Usage: podman-quadlet.sh <profile> [--dry-run]"
     echo
     echo "Install the Podman + systemd Quadlet toolchain only. This module does"
     echo "NOT deploy any specific workload (e.g. AdGuard Home); per-service"
     echo "*.container units are managed out-of-band (e.g. via chezmoi or a"
     echo "dedicated repo) and dropped into /etc/containers/systemd."
-    exit 0
-fi
+}
+
+parse_runtime_args "$@"
 
 # Known locations for the Quadlet systemd generator across distros/versions.
 QUADLET_GENERATORS=(
@@ -30,6 +28,7 @@ main() {
         require_root
     fi
     require_supported_os
+    load_profile "$PROFILE"
     require_command systemctl
 
     log "Installing Podman"

@@ -6,41 +6,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-ADVERTISE_EXIT_NODE="no"
-NETDEV_ARGS=()
-EXIT_NODE_ARGS=()
+usage() {
+    echo "Usage: tailscale.sh <profile> [--dry-run]"
+    echo
+    echo "Reads TAILSCALE_NETDEV / ADVERTISE_EXIT_NODE from the profile and"
+    echo "delegates exit-node networking to setup-tailscale-exit-node.sh."
+}
 
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --dry-run)
-            DRY_RUN="yes"
-            ;;
-        --advertise-exit-node)
-            ADVERTISE_EXIT_NODE="yes"
-            ;;
-        --netdev)
-            [ "$#" -ge 2 ] || die "--netdev requires an interface name"
-            NETDEV_ARGS+=("--netdev" "$2")
-            EXIT_NODE_ARGS+=("--netdev" "$2")
-            shift
-            ;;
-        -h|--help)
-            echo "Usage: tailscale.sh [--dry-run] [--netdev IFACE] [--advertise-exit-node]"
-            exit 0
-            ;;
-        *)
-            die "unknown argument: $1"
-            ;;
-    esac
-    shift
-done
+parse_runtime_args "$@"
 
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
     require_supported_os
+    load_profile "$PROFILE"
     require_command curl
 
     if ! command -v tailscale >/dev/null 2>&1; then
@@ -53,22 +33,11 @@ main() {
 
     local root
     root="$(repo_root)"
-    local args=("--apply")
-    args+=("${EXIT_NODE_ARGS[@]}")
-    if [ "$ADVERTISE_EXIT_NODE" = "yes" ]; then
-        args+=("--advertise-exit-node")
-    fi
-
+    local exit_node_args=("$PROFILE")
     if [ "$DRY_RUN" = "yes" ]; then
-        local dry_args=("--dry-run")
-        dry_args+=("${NETDEV_ARGS[@]}")
-        if [ "$ADVERTISE_EXIT_NODE" = "yes" ]; then
-            dry_args+=("--advertise-exit-node")
-        fi
-        "$root/scripts/setup-tailscale-exit-node.sh" "${dry_args[@]}"
-    else
-        "$root/scripts/setup-tailscale-exit-node.sh" "${args[@]}"
+        exit_node_args+=("--dry-run")
     fi
+    "$root/scripts/setup-tailscale-exit-node.sh" "${exit_node_args[@]}"
 }
 
 main "$@"

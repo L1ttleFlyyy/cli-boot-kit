@@ -6,18 +6,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: router-sysctl.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: router-sysctl.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
+    load_profile "$PROFILE"
     require_command sysctl
 
     local target="/etc/sysctl.d/90-router-local.conf"

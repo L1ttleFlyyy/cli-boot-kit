@@ -6,16 +6,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/../lib/common.sh"
 
-DRY_RUN="no"
-if [ "${1:-}" = "--dry-run" ]; then
-    DRY_RUN="yes"
-elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    echo "Usage: homebrew.sh [--dry-run]"
-    exit 0
-fi
+usage() {
+    echo "Usage: homebrew.sh <profile> [--dry-run]"
+}
+
+parse_runtime_args "$@"
 
 main() {
     require_supported_os
+    load_profile "$PROFILE"
     require_command curl
     require_command bash
 
