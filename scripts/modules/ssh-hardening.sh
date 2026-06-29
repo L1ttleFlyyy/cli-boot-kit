@@ -48,7 +48,12 @@ main() {
 
     log "Installing authorized keys for $user"
     run install -d -m 700 -o "$user" -g "$group" "$user_home/.ssh"
-    run install -m 600 -o "$user" -g "$group" "$keys_file" "$user_home/.ssh/authorized_keys"
+    local authkeys="$user_home/.ssh/authorized_keys"
+    if [ -e "$authkeys" ]; then
+        info "$authkeys already exists; leaving it untouched (no overwrite/merge)"
+    else
+        run install -m 600 -o "$user" -g "$group" "$keys_file" "$authkeys"
+    fi
 
     configure_selinux_port "$ssh_port"
 

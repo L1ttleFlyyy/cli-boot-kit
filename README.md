@@ -76,6 +76,7 @@ sudo ./scripts/modules/zsh.sh --dry-run
 sudo ./scripts/modules/bubblewrap.sh --dry-run
 sudo ./scripts/modules/developer-tools.sh --dry-run
 sudo ./scripts/modules/tailscale.sh --dry-run --netdev eth0
+sudo ./scripts/modules/podman-quadlet.sh --dry-run
 sudo ./scripts/modules/router-sysctl.sh --dry-run
 sudo ./scripts/modules/esp-mirror-sync.sh --dry-run
 ```
@@ -95,6 +96,7 @@ Recommended order and platform behavior:
 | `bubblewrap.sh` | dnf `bubblewrap` | apt + AppArmor `bwrap-userns-restrict` | Verifies `bwrap`. Codex sandbox dep. |
 | `developer-tools.sh` | official installers | same | Claude Code + Codex into `~/.local`. |
 | `tailscale.sh` | official installer + `ethtool` | same | Optional. Installs but leaves node unauthenticated. |
+| `podman-quadlet.sh` | dnf `podman` + Quadlet | apt `podman` + Quadlet | Optional. Toolchain only; deploys no workload. Ensures `/etc/containers/systemd`. |
 | `router-sysctl.sh` | sysctl (bbr/fq/...) | same | Optional, independent. |
 | `esp-mirror-sync.sh` | dual-ESP mirror | dual-ESP mirror | Optional, host-specific. See `docs/esp-mirror-sync.md`. |
 

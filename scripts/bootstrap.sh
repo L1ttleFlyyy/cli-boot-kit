@@ -10,7 +10,7 @@ DRY_RUN="no"
 ADVERTISE_EXIT_NODE="no"
 NETDEV=""
 STEP_CURRENT=0
-STEP_TOTAL=14
+STEP_TOTAL=15
 
 usage() {
     cat <<'USAGE'
@@ -137,6 +137,12 @@ main() {
         run_module tailscale.sh "${tailscale_args[@]}"
     else
         skip_step "tailscale.sh"
+    fi
+
+    if confirm "Install Podman + Quadlet container toolchain?" "no"; then
+        run_module podman-quadlet.sh
+    else
+        skip_step "podman-quadlet.sh"
     fi
 
     if confirm "Apply optional router kernel parameters?" "no"; then
