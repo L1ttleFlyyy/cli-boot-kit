@@ -53,10 +53,36 @@ sudo ./scripts/bootstrap.sh ubuntu-gen
 Run via `sudo` from the **target login user** (e.g. the cloud image's default
 `ubuntu`). The bootstrap does not create users; it configures whichever user
 invoked `sudo`. Which optional modules run (Tailscale / Podman-Quadlet /
-router sysctl) and whether the host advertises as an exit node are declared in
-the profile — there are no interactive toggles. The runner shows numbered steps,
-runs `verify.sh` at the end, and only prompts before reboot. Set `NO_COLOR=1`
-for plain output.
+router sysctl) is declared in the profile — there are no interactive toggles.
+The runner shows numbered steps, runs `verify.sh` at the end, and only prompts
+before reboot. Set `NO_COLOR=1` for plain output.
+
+## Deployment runbook
+
+Specifics learned from real deploys (arm-oci, beelink):
+
+- **Don't lock yourself out.** `ssh-hardening` restarts SSH. Before applying to a
+  remote host, open a **second SSH session** and keep it open — restarting
+  `ssh.socket` (Ubuntu) / `sshd` (Fedora) does not drop established connections,
+  but keep a safety line. Afterwards, confirm a **fresh** `ssh -p 60022` login
+  works before closing everything. To revert SSH:
+  `sudo rm /etc/ssh/sshd_config.d/10-cli-boot-kit.conf` and restart the SSH unit.
+- **Policy-routed hosts need `TAILSCALE_NETDEV`.** If the default route goes
+  through a tunnel (e.g. Cloudflare WARP → `warp0`), auto-detection picks the
+  wrong interface for the UDP GRO service. Find the physical NIC and pin it in
+  the host profile:
+  ```bash
+  ip -o route get 8.8.8.8      # what auto-detect would pick
+  ls /sys/class/net/           # physical NIC is usually enp*/ens*
+  ```
+  (See `arm-oci.env` → `enp0s6`, `beelink.env` → `enp2s0`.)
+- **chezmoi overwrites to the declared state.** bootstrap runs
+  `chezmoi init <repo> --apply --force`. If the host has local edits to managed
+  dotfiles you want to keep, run `chezmoi diff` and resolve them first.
+- **Reboot.** The final `dnf/apt upgrade` may pull a new kernel; reboot when
+  convenient (`sudo systemctl reboot`).
+- **Expect a green verify.** After a real apply, `verify.sh <profile>` should be
+  all `[PASS]`. Running it *before* deploy naturally shows `[FAIL]`s (env-check).
 
 ## Profiles & config
 
@@ -68,7 +94,8 @@ A profile is the single source of truth for a host. `config/defaults.env` and
 | `profiles/<name>.env` | **Per-host target state**: timezone, `SSH_PORT`, shell, chezmoi repo, trusted tailnet CIDR, dev-tool + optional-module toggles. Required argument to every script. |
 | `profiles/ubuntu-gen.env` | Generic Ubuntu 24.04 baseline (from arm-oci). |
 | `profiles/fedora-gen.env` | Generic Fedora 44 baseline. Copy this for a new Fedora host. |
-| `profiles/beelink.env` | Host-specific example: a customized Fedora box (WARP policy routing forces `TAILSCALE_NETDEV`). Do not inherit for fresh hosts. |
+| `profiles/beelink.env` | Host-specific example: a customized Fedora box (WARP policy routing forces `TAILSCALE_NETDEV=enp2s0`). Do not inherit for fresh hosts. |
+| `profiles/arm-oci.env` | Host-specific example: Ubuntu on OCI, WARP forces `TAILSCALE_NETDEV=enp0s6`. Do not inherit for fresh hosts. |
 | `config/defaults.env` | Fallback defaults beneath the profile. |
 | `config/ssh.env` | Fallback `SSH_PORT` (default `60022`). |
 | `config/authorized_keys` | Tracked SSH public-key allowlist. Used only to seed hosts without an existing `~/.ssh/authorized_keys`; existing host keys are never overwritten. |
@@ -164,6 +191,21 @@ sudo ./scripts/verify.sh ubuntu-gen
 
 Checks that need root (ufw/firewalld status, `fail2ban-client`, `sshd -t`) are
 reported as `[SKIP]` when run without it.
+
+## Conventions
+
+Durable design rules for anyone extending the kit:
+
+- **Declarative.** A profile is a host's single source of truth; scripts converge
+  and verify, they don't hard-code configurable values.
+- **Uniform CLI.** Every script is `<profile> [--dry-run]`. `esp-mirror-sync.sh`
+  is the one deliberate exception (host-specific, Fedora-only, its own CLI).
+- **dry-run == apply.** All actions go through `run` / `run_eval` / `write_file`,
+  so what dry-run prints is exactly what apply executes.
+- **Idempotent and non-destructive.** Re-running converges to the profile;
+  existing `~/.ssh/authorized_keys` is never overwritten.
+- **Platform differences live in `lib/os.sh`.** Host-specific values go in a host
+  profile, never in the generic baseline.
 
 ## References
 
