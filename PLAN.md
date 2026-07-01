@@ -61,7 +61,7 @@ shell-safe `.env`，避免引入额外 parser。分层加载：`config/defaults.
 | `developer-tools.sh` | ✅ | Claude Code + Codex 官方 installer，装入 `~/.local`（非 brew/npm）。 |
 | `tailscale.sh` | ✅ | 官方 installer + ethtool；装好但不 `tailscale up`（注册手动）。 |
 | `router-sysctl.sh` / `setup-tailscale-exit-node.sh` | ✅ | router/exit-node sysctl（含 bbr/fq）+ UDP GRO 优化。 |
-| `esp-mirror-sync.sh` | ⚠️ host-specific | 双 ESP 镜像，beelink 专用；尚未纳入跨平台体系（见 TODO 4）。 |
+| `esp-mirror-sync.sh` | ✅ host-specific（例外） | 双 ESP 镜像，Fedora-only；**刻意不进 profile/bootstrap 流程**，保留自有 CLI + `config/esp-mirror-sync.env`，手动在有第二 ESP 的主机上跑。非 Fedora 优雅 `die`。 |
 | `podman-quadlet.sh` | ✅ | 仅装 Podman + Quadlet 工具链；建 `/etc/containers/systemd` + `daemon-reload`。不部署任何具体 workload。 |
 
 Brewfile 不纳管（由专用模块/官方 installer 负责）：`bubblewrap`、`codex`、
@@ -116,10 +116,15 @@ SELinux/firewalld/fail2ban-firewalld/chezmoi-dnf 分支均符合预期。
 
 待实测（随 TODO 1 在 beelink 上一并做）：Fedora 上 Quadlet generator 路径与 `podman` 版本。
 
-### 4. `esp-mirror-sync` 归属决策
+### 4. ~~`esp-mirror-sync` 归属决策~~（已决定）
 
-当前是 beelink 双 ESP 专用、host-specific。需决定：纳入跨平台体系（抽象成可配置的
-"mirror 第二 ESP"特性），还是保持纯 host-specific、明确标注不进通用流程。
+决策：**保持纯 host-specific 独立工具，不进 profile/bootstrap 通用流程**。它保留自有
+CLI（`[--dry-run] [--no-sync-now] [--no-enable] [--with-shutdown-hook]`）与
+`config/esp-mirror-sync.env`（存 ESP 设备 UUID），手动在有第二 ESP 的 Fedora 主机
+（beelink）上运行。顺带修掉重构遗留的崩溃：`require_fedora`（已删）→ `is_fedora` 守卫。
+
+> 全仓唯一不遵循 `<profile> [--dry-run]` 约定的脚本，作为明确标注的例外。dry-run 实测
+> 需在 beelink 上做（arm-oci 无双 ESP 硬件；非 Fedora 会优雅 `die`）。
 
 ## Resolved Decisions
 
@@ -132,8 +137,9 @@ SELinux/firewalld/fail2ban-firewalld/chezmoi-dnf 分支均符合预期。
   **不碰账号态**；`tailscale up` 与 advertise 手动。几乎所有 host 都是 exit node，
   故 forwarding + optimize 随 `INSTALL_TAILSCALE` 默认开启。
 - chezmoi：bootstrap 用 `--apply --force`，声明态覆盖本机改动。
-- Profile 分层：`fedora-gen`/`ubuntu-gen` 是通用基线（新机器从此复制）；`beelink`
-  是 host-specific 示例（WARP policy routing 强制 `TAILSCALE_NETDEV`），不被继承。
+- Profile 分层：`fedora-gen`/`ubuntu-gen` 是通用基线（新机器从此复制）；`beelink`、
+  `arm-oci` 是 host-specific 示例（WARP policy routing 强制 `TAILSCALE_NETDEV`），不被继承。
+- `esp-mirror-sync`：保持 host-specific 独立工具，不进通用流程（TODO4 已决）。
 
 ## Open Questions
 

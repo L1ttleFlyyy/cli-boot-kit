@@ -101,8 +101,16 @@ sudo ./scripts/modules/podman-quadlet.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/router-sysctl.sh ubuntu-gen --dry-run
 ```
 
-`esp-mirror-sync.sh` is host-specific and **not** part of the profile flow; it
-keeps its own `config/esp-mirror-sync.env` and is run separately.
+`esp-mirror-sync.sh` is the one exception: a host-specific, Fedora-only tool for
+mirroring a second ESP. It is **not** profile-driven and **not** wired into
+`bootstrap.sh`; it keeps its own CLI and `config/esp-mirror-sync.env`, and is run
+manually on the host that has the second ESP:
+
+```bash
+sudo ./scripts/modules/esp-mirror-sync.sh --dry-run
+```
+
+See `docs/esp-mirror-sync.md`.
 
 Recommended order and platform behavior:
 
@@ -121,9 +129,6 @@ Recommended order and platform behavior:
 | `tailscale.sh` | official installer + `ethtool` | same | Optional (`INSTALL_TAILSCALE`). Installs but leaves node unauthenticated. |
 | `podman-quadlet.sh` | dnf `podman` + Quadlet | apt `podman` + Quadlet | Optional (`INSTALL_PODMAN_QUADLET`). Toolchain only; deploys no workload. |
 | `router-sysctl.sh` | sysctl (bbr/fq/...) | same | Optional (`APPLY_ROUTER_SYSCTL`). |
-
-`esp-mirror-sync.sh` is host-specific and outside the profile flow; see
-`docs/esp-mirror-sync.md`.
 
 ## Tailscale exit node
 

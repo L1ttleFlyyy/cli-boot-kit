@@ -15,7 +15,10 @@ usage() {
     cat <<'USAGE'
 Usage: esp-mirror-sync.sh [--dry-run] [--no-sync-now] [--no-enable] [--with-shutdown-hook]
 
-Install an idempotent ESP mirror sync helper for this host.
+Install an idempotent ESP mirror sync helper for this host. Host-specific and
+Fedora-only; intentionally NOT profile-driven and NOT wired into bootstrap.sh —
+this is the one module that keeps its own CLI and config/esp-mirror-sync.env.
+Run it manually on the host that has a second ESP.
 
 Options:
   --dry-run              Print actions without applying changes.
@@ -67,7 +70,10 @@ main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
     fi
-    require_fedora
+    # Host-specific tool: dual-ESP mirroring on a Fedora box (uses dnf). This is
+    # intentionally NOT part of the profile-driven bootstrap; run it manually on
+    # the host that has the second ESP. See docs/esp-mirror-sync.md.
+    is_fedora || die "esp-mirror-sync is host-specific and Fedora-only (uses dnf); OS is ${OS_ID:-unknown}"
     require_command install
     require_command systemctl
     require_command dnf
