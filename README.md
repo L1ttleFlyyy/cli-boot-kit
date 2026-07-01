@@ -206,6 +206,13 @@ Durable design rules for anyone extending the kit:
   existing `~/.ssh/authorized_keys` is never overwritten.
 - **Platform differences live in `lib/os.sh`.** Host-specific values go in a host
   profile, never in the generic baseline.
+- **Homebrew is a baseline, not a toggle.** Every host installs Homebrew and the
+  `Brewfile`; there is deliberately no `INSTALL_HOMEBREW` switch. Only genuinely
+  optional capabilities (Tailscale / Podman / router sysctl) are per-host
+  toggles; the CLI baseline is not.
+- **Ubuntu networking assumes `systemd-networkd`.** On Debian/Ubuntu hosts the
+  kit treats `systemd-networkd` as a precondition rather than managing or
+  choosing the network stack itself.
 
 ## References
 
