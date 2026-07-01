@@ -177,11 +177,15 @@ main() {
     esac
 
     section "fail2ban"
-    check_cmd "fail2ban service active" systemctl is-active --quiet fail2ban
-    if is_root; then
-        check_cmd "sshd jail present" fail2ban-client status sshd
+    if [ "${INSTALL_FAIL2BAN:-yes}" = "yes" ]; then
+        check_cmd "fail2ban service active" systemctl is-active --quiet fail2ban
+        if is_root; then
+            check_cmd "sshd jail present" fail2ban-client status sshd
+        else
+            skip "sshd jail present" "needs root"
+        fi
     else
-        skip "sshd jail present" "needs root"
+        skip "fail2ban" "INSTALL_FAIL2BAN != yes"
     fi
 
     section "Shell & dotfiles (user: ${user})"

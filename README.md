@@ -52,8 +52,9 @@ sudo ./scripts/bootstrap.sh ubuntu-gen
 
 Run via `sudo` from the **target login user** (e.g. the cloud image's default
 `ubuntu`). The bootstrap does not create users; it configures whichever user
-invoked `sudo`. Which optional modules run (Tailscale / Podman-Quadlet /
-router sysctl) is declared in the profile — there are no interactive toggles.
+invoked `sudo`. Which optional modules run (fail2ban / Tailscale /
+Podman-Quadlet / router sysctl) is declared in the profile — there are no
+interactive toggles.
 The runner shows numbered steps, runs `verify.sh` at the end, and only prompts
 before reboot. Set `NO_COLOR=1` for plain output.
 
@@ -146,7 +147,7 @@ Recommended order and platform behavior:
 | `base-packages.sh` | dnf, `procps-ng gcc gcc-c++ make` | apt, `procps build-essential` | Run first. |
 | `ssh-hardening.sh` | SELinux `ssh_port_t`, firewalld, restart `sshd` | no SELinux, ufw rule, restart `ssh.socket` | Reads `SSH_PORT` from profile + `authorized_keys`. |
 | `firewall.sh` | firewalld baseline | ufw default-deny, allow `SSH_PORT` then enable | Allows SSH before enabling to avoid lockout. |
-| `fail2ban.sh` | `fail2ban-firewalld`, firewalld action | `banaction = ufw` | sshd jail on `SSH_PORT`; ignores tailnet. |
+| `fail2ban.sh` | `fail2ban-firewalld`, firewalld action | `banaction = ufw` | Optional (`INSTALL_FAIL2BAN`, default on). sshd jail on `SSH_PORT`; ignores tailnet. |
 | `homebrew.sh` | Linuxbrew as target user | same | After base packages. |
 | `brew-bundle.sh` | `Brewfile` | same | After Homebrew. |
 | `chezmoi.sh` | dnf `chezmoi` if missing | official installer / Homebrew | Applies `CHEZMOI_REPO`. |
@@ -208,8 +209,8 @@ Durable design rules for anyone extending the kit:
   profile, never in the generic baseline.
 - **Homebrew is a baseline, not a toggle.** Every host installs Homebrew and the
   `Brewfile`; there is deliberately no `INSTALL_HOMEBREW` switch. Only genuinely
-  optional capabilities (Tailscale / Podman / router sysctl) are per-host
-  toggles; the CLI baseline is not.
+  optional capabilities (Tailscale / Podman / router sysctl / fail2ban) are
+  per-host toggles; the CLI baseline is not.
 - **Ubuntu networking assumes `systemd-networkd`.** On Debian/Ubuntu hosts the
   kit treats `systemd-networkd` as a precondition rather than managing or
   choosing the network stack itself.

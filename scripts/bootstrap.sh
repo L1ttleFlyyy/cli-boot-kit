@@ -89,7 +89,11 @@ main() {
     run_module base-packages.sh
     run_module ssh-hardening.sh
     run_module firewall.sh
-    run_module fail2ban.sh
+    if [ "${INSTALL_FAIL2BAN:-yes}" = "yes" ]; then
+        run_module fail2ban.sh
+    else
+        skip_step "fail2ban.sh"
+    fi
     run_module homebrew.sh
     run_module brew-bundle.sh
     run_module chezmoi.sh
