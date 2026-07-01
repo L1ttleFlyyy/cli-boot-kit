@@ -163,7 +163,12 @@ Recommended order and platform behavior:
 `INSTALL_TAILSCALE=yes` installs tailscale + `ethtool` and, via
 `setup-tailscale-exit-node.sh`, the OS-level networking an exit node needs: IP
 forwarding sysctl + a UDP GRO optimization service (interface from
-`TAILSCALE_NETDEV`, empty = auto-detect). To apply just that networking:
+`TAILSCALE_NETDEV`, empty = auto-detect). It also opens **inbound UDP 41641**
+(Tailscale's default port) so peers can establish direct connections / punch
+through NAT instead of relaying via DERP. On `ufw` this is a global
+`allow 41641/udp`; on `firewalld` the rule is added to the zone bound to
+`TAILSCALE_NETDEV` (falling back to the default zone), since the physical NIC is
+not always in the default zone. To apply just that networking:
 
 ```bash
 sudo ./scripts/setup-tailscale-exit-node.sh <profile>

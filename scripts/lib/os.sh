@@ -151,6 +151,57 @@ firewall_allow_port() {
     esac
 }
 
+# firewalld_zone_for_netdev NETDEV — echo the firewalld zone bound to NETDEV, or
+# the default zone when NETDEV has no explicit assignment (the common case under
+# NetworkManager / systemd-networkd). Read-only, so it is safe to call in dry-run
+# and the previewed --zone matches what a real apply would target.
+firewalld_zone_for_netdev() {
+    local netdev="$1"
+    local zone=""
+
+    if [ -n "$netdev" ]; then
+        zone="$(firewall-cmd --get-zone-of-interface="$netdev" 2>/dev/null || true)"
+    fi
+    case "$zone" in
+        ""|"no zone")
+            zone="$(firewall-cmd --get-default-zone 2>/dev/null || printf 'public\n')"
+            ;;
+    esac
+    printf '%s\n' "$zone"
+}
+
+# firewall_allow_port_on_netdev PORT PROTO NETDEV — open PORT/PROTO for inbound
+# traffic arriving on NETDEV. ufw has no per-interface zones, so it opens the
+# port globally; firewalld targets the zone actually bound to NETDEV (falling
+# back to the default zone) so the rule lands where the traffic arrives instead
+# of on whatever the default zone happens to be — the physical NIC is not always
+# in the default zone.
+firewall_allow_port_on_netdev() {
+    local port="$1"
+    local proto="$2"
+    local netdev="$3"
+
+    case "$(firewall_kind)" in
+        firewalld)
+            if firewalld_active; then
+                local zone
+                zone="$(firewalld_zone_for_netdev "$netdev")"
+                info "Opening ${port}/${proto} on firewalld zone ${zone} (interface ${netdev:-unknown})"
+                run firewall-cmd --permanent --zone="$zone" --add-port="${port}/${proto}"
+                run firewall-cmd --reload
+            else
+                info "firewalld is not active; skipping firewall port ${port}/${proto}"
+            fi
+            ;;
+        ufw)
+            run ufw allow "${port}/${proto}"
+            ;;
+        *)
+            info "no supported firewall manager; skipping port ${port}/${proto}"
+            ;;
+    esac
+}
+
 # ssh_unit echoes the unit name used to (re)start the SSH daemon.
 ssh_unit() {
     if is_fedora; then

@@ -232,6 +232,32 @@ main() {
     if [ "${INSTALL_TAILSCALE:-no}" = "yes" ]; then
         check_cmd "tailscale on PATH" command -v tailscale
         check_cmd "tailscaled active" systemctl is-active --quiet tailscaled
+        case "$(firewall_kind)" in
+            firewalld)
+                if is_root; then
+                    local ts_zone
+                    ts_zone="$(firewalld_zone_for_netdev "${TAILSCALE_NETDEV:-}")"
+                    check_cmd "firewalld allows 41641/udp (zone ${ts_zone})" \
+                        firewall-cmd --zone="$ts_zone" --query-port=41641/udp
+                else
+                    skip "firewalld allows 41641/udp" "needs root"
+                fi
+                ;;
+            ufw)
+                if is_root; then
+                    if ufw status 2>/dev/null | grep -q "41641/udp"; then
+                        pass "ufw allows 41641/udp"
+                    else
+                        fail "ufw allows 41641/udp"
+                    fi
+                else
+                    skip "ufw allows 41641/udp" "needs root"
+                fi
+                ;;
+            *)
+                skip "tailscale 41641/udp" "no supported firewall manager"
+                ;;
+        esac
     else
         skip "tailscale" "INSTALL_TAILSCALE != yes"
     fi

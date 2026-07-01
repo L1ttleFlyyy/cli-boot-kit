@@ -88,6 +88,12 @@ EOF
     run systemctl daemon-reload
     run systemctl enable --now tailscale-network-optimize.service
 
+    # Allow inbound to Tailscale's default UDP port so peers can establish direct
+    # connections (NAT hole punching) instead of falling back to a DERP relay.
+    # https://tailscale.com/kb/1082/firewall-ports
+    log "Opening Tailscale UDP 41641 for NAT traversal"
+    firewall_allow_port_on_netdev 41641 udp "$netdev"
+
     info "Services installed. Register and advertise manually, e.g.:"
     info "  sudo tailscale up --advertise-exit-node"
 }
