@@ -12,6 +12,20 @@ usage() {
 
 parse_runtime_args "$@"
 
+resolve_shell_path() {
+    local shell_name="$1"
+    local candidate
+
+    for candidate in "/usr/bin/$shell_name" "/bin/$shell_name"; do
+        if [ -x "$candidate" ] && grep -qxF "$candidate" /etc/shells; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    command -v "$shell_name"
+}
+
 main() {
     if [ "$DRY_RUN" != "yes" ]; then
         require_root
@@ -24,7 +38,7 @@ main() {
     shell_name="${DEFAULT_SHELL:-zsh}"
     require_command chsh
     require_command "$shell_name"
-    shell_path="$(command -v "$shell_name")"
+    shell_path="$(resolve_shell_path "$shell_name")"
     user="$(target_user)"
 
     if ! grep -qxF "$shell_path" /etc/shells; then
