@@ -120,7 +120,7 @@ ensure_authorized_keys() {
         return 0
     fi
 
-    [ -t 0 ] || die "missing config/authorized_keys; create it from config/authorized_keys.example before running non-interactively"
+    [ -t 0 ] || die "missing config/authorized_keys; add tracked SSH public keys before running non-interactively"
 
     warn "Missing local config/authorized_keys."
     info "Paste one SSH public key per line, then press Enter on an empty line to finish."

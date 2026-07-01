@@ -22,15 +22,19 @@ The SSH module moves the daemon to port `60022`. On a cloud instance, **open
 `60022/tcp` in the provider security group (and keep `22` until you confirm the
 new port works)** before running the bootstrap, or you can lock yourself out.
 
-Create your SSH key list first (otherwise the SSH module prompts for keys):
+Review the tracked SSH public-key allowlist before running the SSH module:
 
 ```bash
-cp config/authorized_keys.example config/authorized_keys
-# edit config/authorized_keys, one public key per line
+$EDITOR config/authorized_keys
+# one public key per line
 ```
 
-The real `config/authorized_keys` is gitignored so access lists are never
-published.
+This repository is private, and `config/authorized_keys` is intentionally
+tracked. These are public keys, not private key material. The SSH module uses
+the file only to seed a host that does not already have
+`~/.ssh/authorized_keys`; existing host keys are never overwritten or merged.
+The installed target file is written with mode `600`, regardless of the source
+file's repository permissions.
 
 ## Bootstrap a new server
 
@@ -66,7 +70,7 @@ A profile is the single source of truth for a host. `config/defaults.env` and
 | `profiles/fedora-gen.env` | Reference Fedora 44 (beelink) profile. |
 | `config/defaults.env` | Fallback defaults beneath the profile. |
 | `config/ssh.env` | Fallback `SSH_PORT` (default `60022`). |
-| `config/authorized_keys` | SSH public keys (gitignored; created from the example). Existing keys on a host are never overwritten. |
+| `config/authorized_keys` | Tracked SSH public-key allowlist. Used only to seed hosts without an existing `~/.ssh/authorized_keys`; existing host keys are never overwritten. |
 | `Brewfile` | Cross-platform CLI tools installed via Homebrew. |
 
 To onboard a new host, copy the closest profile and edit it:

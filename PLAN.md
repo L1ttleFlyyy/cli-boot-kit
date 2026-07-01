@@ -37,7 +37,7 @@ shell-safe `.env`，避免引入额外 parser。分层加载：`config/defaults.
   chezmoi repo、trusted tailnet CIDR、dev-tool 与可选模块开关）。所有脚本必需参数。
   参考：`ubuntu-gen`（arm-oci）、`fedora-gen`（beelink）。
 - `config/defaults.env` / `config/ssh.env`：fallback 基线。
-- `config/authorized_keys`：SSH 公钥（gitignored）；主机已存在则不覆盖。
+- `config/authorized_keys`：SSH 公钥 allowlist，随 private repo 版本管理；主机已存在则不覆盖。
 - `Brewfile`：跨平台 CLI 工具。
 
 ## Module Status
