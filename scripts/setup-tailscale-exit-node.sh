@@ -9,9 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
     echo "Usage: setup-tailscale-exit-node.sh <profile> [--dry-run]"
     echo
-    echo "Configures Linux networking for a Tailscale exit node. Reads"
-    echo "TAILSCALE_NETDEV (empty => auto-detect) and ADVERTISE_EXIT_NODE from"
-    echo "the profile. Default is apply; pass --dry-run to preview."
+    echo "Installs the OS-level networking an exit node needs: IP forwarding"
+    echo "sysctl + a UDP GRO optimization service. Reads TAILSCALE_NETDEV"
+    echo "(empty => auto-detect) from the profile. This does NOT touch Tailscale"
+    echo "account state: 'tailscale up' and --advertise-exit-node stay manual."
+    echo "Default is apply; pass --dry-run to preview."
 }
 
 parse_runtime_args "$@"
@@ -44,8 +46,7 @@ main() {
     require_command awk
     require_command sysctl
 
-    local advertise netdev
-    advertise="${ADVERTISE_EXIT_NODE:-no}"
+    local netdev
     netdev="${TAILSCALE_NETDEV:-}"
     if [ -z "$netdev" ]; then
         require_command ip
@@ -54,12 +55,12 @@ main() {
     [ -n "$netdev" ] || die "could not determine egress interface; set TAILSCALE_NETDEV in the profile"
 
     info "Egress interface: $netdev"
-    info "Advertise exit node: $advertise"
 
     log "Writing exit-node forwarding sysctl"
     write_file /etc/sysctl.d/99-tailscale-exit-node.conf <<'EOF'
 # Managed by cli-boot-kit/scripts/setup-tailscale-exit-node.sh
-# Required when this host advertises itself as a Tailscale exit node.
+# IP forwarding an exit node / subnet router needs. Registration and
+# --advertise-exit-node are intentionally left to a manual `tailscale up`.
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
 EOF
@@ -87,12 +88,8 @@ EOF
     run systemctl daemon-reload
     run systemctl enable --now tailscale-network-optimize.service
 
-    if [ "$advertise" = "yes" ]; then
-        require_command tailscale
-        run tailscale set --advertise-exit-node
-    else
-        info "ADVERTISE_EXIT_NODE != yes; not advertising as an exit node."
-    fi
+    info "Services installed. Register and advertise manually, e.g.:"
+    info "  sudo tailscale up --advertise-exit-node"
 }
 
 main "$@"

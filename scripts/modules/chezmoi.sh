@@ -70,8 +70,11 @@ main() {
         log "chezmoi already installed for $user"
     fi
 
+    # --force keeps bootstrap non-interactive: chezmoi otherwise prompts when a
+    # target file changed since it last wrote it. The profile-declared dotfiles
+    # are the target state, so they win.
     log "Applying chezmoi dotfiles ($repo) for $user"
-    user_login_run "$user" "chezmoi init $(printf '%q' "$repo") --apply"
+    user_login_run "$user" "chezmoi init $(printf '%q' "$repo") --apply --force"
 }
 
 main "$@"

@@ -95,14 +95,19 @@ configure_selinux_port() {
     fi
 
     log "Allowing SSH port $ssh_port in SELinux"
+    # `semanage port -l` prints: "<type>  <proto>  <port>[, <port>...]", so the
+    # proto is field 2 and ports are fields 3..NF (comma-separated).
     if [ "$DRY_RUN" = "yes" ]; then
         run semanage port -a -t ssh_port_t -p tcp "$ssh_port"
-    elif semanage port -l | awk '$1 == "ssh_port_t" && $3 == "tcp" { print $4 }' | tr ',' '\n' | grep -qx "$ssh_port"; then
+    elif semanage port -l |
+        awk '$1 == "ssh_port_t" && $2 == "tcp" { for (i = 3; i <= NF; i++) { gsub(/,/, "", $i); print $i } }' |
+        grep -qx "$ssh_port"; then
         log "SELinux already allows ssh_port_t tcp/$ssh_port"
     elif semanage port -a -t ssh_port_t -p tcp "$ssh_port" 2>/dev/null; then
         log "Added SELinux ssh_port_t tcp/$ssh_port"
     else
         semanage port -m -t ssh_port_t -p tcp "$ssh_port"
+        log "Modified SELinux ssh_port_t tcp/$ssh_port"
     fi
 }
 

@@ -9,8 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
     echo "Usage: tailscale.sh <profile> [--dry-run]"
     echo
-    echo "Reads TAILSCALE_NETDEV / ADVERTISE_EXIT_NODE from the profile and"
-    echo "delegates exit-node networking to setup-tailscale-exit-node.sh."
+    echo "Installs tailscale + ethtool and delegates exit-node networking"
+    echo "(IP forwarding + UDP GRO) to setup-tailscale-exit-node.sh. Does not"
+    echo "register or advertise the node — that stays a manual 'tailscale up'."
 }
 
 parse_runtime_args "$@"

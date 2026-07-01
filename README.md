@@ -66,8 +66,9 @@ A profile is the single source of truth for a host. `config/defaults.env` and
 | File | Purpose |
 | --- | --- |
 | `profiles/<name>.env` | **Per-host target state**: timezone, `SSH_PORT`, shell, chezmoi repo, trusted tailnet CIDR, dev-tool + optional-module toggles. Required argument to every script. |
-| `profiles/ubuntu-gen.env` | Reference Ubuntu 24.04 (arm-oci) profile. |
-| `profiles/fedora-gen.env` | Reference Fedora 44 (beelink) profile. |
+| `profiles/ubuntu-gen.env` | Generic Ubuntu 24.04 baseline (from arm-oci). |
+| `profiles/fedora-gen.env` | Generic Fedora 44 baseline. Copy this for a new Fedora host. |
+| `profiles/beelink.env` | Host-specific example: a customized Fedora box (WARP policy routing forces `TAILSCALE_NETDEV`). Do not inherit for fresh hosts. |
 | `config/defaults.env` | Fallback defaults beneath the profile. |
 | `config/ssh.env` | Fallback `SSH_PORT` (default `60022`). |
 | `config/authorized_keys` | Tracked SSH public-key allowlist. Used only to seed hosts without an existing `~/.ssh/authorized_keys`; existing host keys are never overwritten. |
@@ -126,18 +127,24 @@ Recommended order and platform behavior:
 
 ## Tailscale exit node
 
-`TAILSCALE_NETDEV` (empty = auto-detect) and `ADVERTISE_EXIT_NODE` are declared
-in the profile. To apply only the exit-node networking:
+`INSTALL_TAILSCALE=yes` installs tailscale + `ethtool` and, via
+`setup-tailscale-exit-node.sh`, the OS-level networking an exit node needs: IP
+forwarding sysctl + a UDP GRO optimization service (interface from
+`TAILSCALE_NETDEV`, empty = auto-detect). To apply just that networking:
 
 ```bash
 sudo ./scripts/setup-tailscale-exit-node.sh <profile>
 ```
 
-After advertising, approve the exit node in the Tailscale admin console
-(Machines → this host → route settings → enable "Use as exit node").
+The kit **only installs services** — it never touches Tailscale account state.
+Registration and advertising are a manual step (`tailscale up`), e.g.:
 
-Tailscale registration (`tailscale up`) is intentionally manual and outside the
-bootstrap.
+```bash
+sudo tailscale up --advertise-exit-node
+```
+
+Then approve the exit node in the Tailscale admin console (Machines → this host →
+route settings → enable "Use as exit node").
 
 ## Verify
 
