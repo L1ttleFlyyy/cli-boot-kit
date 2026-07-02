@@ -14,9 +14,12 @@ usage() {
     echo "(for Cockpit / console PAM auth) so that gaining a password does not"
     echo "reintroduce sudo prompts."
     echo
-    echo "SECURITY: this weakens sudo to no reauthentication. Only enable"
-    echo "(SUDO_NOPASSWD=yes) on hosts where that is an accepted policy — e.g."
-    echo "single-admin boxes with key-only SSH and no untrusted inbound exposure."
+    echo "SECURITY MODEL: the security boundary is the firewall, not the"
+    echo "password. Cockpit is tailnet-only (9090 never public) and SSH is"
+    echo "key-only (PasswordAuthentication no), so the login password only serves"
+    echo "PAM and passwordless sudo does not widen the attack surface. Off by"
+    echo "default (SUDO_NOPASSWD=yes to enable) only to keep it an explicit"
+    echo "per-host choice, not because reachability warrants a password prompt."
 }
 
 parse_runtime_args "$@"

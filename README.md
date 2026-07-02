@@ -225,12 +225,21 @@ sudo's `includedir`), checked with `visudo -cf`, installed `0440 root:root`, the
 the whole config is re-checked with `visudo -c`, so an invalid file is never
 activated.
 
-**Security note:** this removes sudo reauthentication. It is **off by default**
-and should be enabled only on hosts where that policy is acceptable — single
-admin, key-only SSH (`PasswordAuthentication no`), no untrusted inbound exposure.
-The `ubuntu-gen`/`arm-oci` profiles enable it; the Fedora profiles do not. If a
-host copied from `ubuntu-gen` gains untrusted inbound access, set
-`SUDO_NOPASSWD=no`.
+**Security model:** the account password is *not* the security boundary here —
+the firewall is. What protects these hosts is reachability, not passwords:
+
+- The management panel (Cockpit, `tcp/9090`) is **never opened publicly**. `ufw`
+  default-deny blocks it and only the tailnet can reach it.
+- SSH is **always key-only** (`PasswordAuthentication no`); password login is
+  never enabled. The login password therefore only serves Cockpit/console PAM.
+
+Given that, passwordless sudo does **not** widen the attack surface: reaching the
+host at all already requires the SSH key or tailnet access, and re-prompting for
+that same password would add nothing an attacker on the inside couldn't bypass.
+So there is no reason to flip `SUDO_NOPASSWD` back to `no` for a host that is
+merely reachable — the exposure is controlled at the firewall, not the sudo
+prompt. It stays `off` in `config/defaults.env` only so that enabling it remains
+an explicit per-host choice; the `ubuntu-gen`/`arm-oci` profiles turn it on.
 
 ## Verify
 
@@ -250,6 +259,13 @@ reported as `[SKIP]` when run without it.
 
 Durable design rules for anyone extending the kit:
 
+- **The firewall is the security boundary, not passwords.** Management surfaces
+  are protected by reachability: Cockpit (`tcp/9090`) is never opened publicly
+  and is reachable only over the tailnet, and SSH is always key-only
+  (`PasswordAuthentication no`). Account passwords exist only for PAM
+  (Cockpit/console), not as the thing keeping the host safe — which is why
+  passwordless sudo is an accepted setting on these hosts rather than a
+  regression.
 - **Declarative.** A profile is a host's single source of truth; scripts converge
   and verify, they don't hard-code configurable values.
 - **Uniform CLI.** Every script is `<profile> [--dry-run]`. `esp-mirror-sync.sh`
