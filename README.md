@@ -52,9 +52,9 @@ sudo ./scripts/bootstrap.sh ubuntu-gen
 
 Run via `sudo` from the **target login user** (e.g. the cloud image's default
 `ubuntu`). The bootstrap does not create users; it configures whichever user
-invoked `sudo`. Which optional modules run (fail2ban / Tailscale /
-Podman-Quadlet / router sysctl) is declared in the profile — there are no
-interactive toggles.
+invoked `sudo`. Which optional modules run (fail2ban / passwordless sudo /
+Tailscale / Podman-Quadlet / router sysctl / Cockpit) is declared in the
+profile — there are no interactive toggles.
 The runner shows numbered steps, runs `verify.sh` at the end, and only prompts
 before reboot. Set `NO_COLOR=1` for plain output.
 
@@ -124,9 +124,11 @@ sudo ./scripts/modules/chezmoi.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/zsh.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/bubblewrap.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/developer-tools.sh ubuntu-gen --dry-run
+sudo ./scripts/modules/sudo-nopasswd.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/tailscale.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/podman-quadlet.sh ubuntu-gen --dry-run
 sudo ./scripts/modules/router-sysctl.sh ubuntu-gen --dry-run
+sudo ./scripts/modules/cockpit.sh ubuntu-gen --dry-run
 ```
 
 `esp-mirror-sync.sh` is the one exception: a host-specific, Fedora-only tool for
@@ -154,9 +156,11 @@ Recommended order and platform behavior:
 | `zsh.sh` | sets login shell | same | After dotfiles. |
 | `bubblewrap.sh` | dnf `bubblewrap` | apt + AppArmor `bwrap-userns-restrict` | Verifies `bwrap`. Codex sandbox dep. |
 | `developer-tools.sh` | official installers | same | Claude Code + Codex into `~/.local`. |
+| `sudo-nopasswd.sh` | same | same | Optional (`SUDO_NOPASSWD`, default off). Validated `/etc/sudoers.d` drop-in granting the login user passwordless sudo. |
 | `tailscale.sh` | official installer + `ethtool` | same | Optional (`INSTALL_TAILSCALE`). Installs but leaves node unauthenticated. |
 | `podman-quadlet.sh` | dnf `podman` + Quadlet | apt `podman` + Quadlet | Optional (`INSTALL_PODMAN_QUADLET`). Toolchain only; deploys no workload. |
 | `router-sysctl.sh` | sysctl (bbr/fq/...) | same | Optional (`APPLY_ROUTER_SYSCTL`). |
+| `cockpit.sh` | no-op (ships by default) | apt from `${codename}-backports` + `cockpit.socket` | Optional (`INSTALL_COCKPIT`). Web console on tcp/9090; no firewall rule (tailnet-only). Adds `cockpit-podman` when `INSTALL_PODMAN_QUADLET=yes` (PCP/metrics is built into cockpit-bridge). |
 
 ## Tailscale exit node
 
@@ -183,6 +187,50 @@ sudo tailscale up --advertise-exit-node
 
 Then approve the exit node in the Tailscale admin console (Machines → this host →
 route settings → enable "Use as exit node").
+
+## Cockpit web console
+
+`INSTALL_COCKPIT=yes` installs the [Cockpit](https://cockpit-project.org/) web
+console and enables `cockpit.socket`. It targets Debian/Ubuntu, where Cockpit is
+pulled from the distro's **backports pocket** (`apt install -t
+${VERSION_CODENAME}-backports cockpit`) — a much newer release than the base
+pocket. The pocket is enabled by default on Ubuntu. On **Fedora** the module is
+a deliberate no-op, since Fedora Server ships Cockpit by default.
+
+When the host also runs the Podman/Quadlet toolchain
+(`INSTALL_PODMAN_QUADLET=yes`) it adds **`cockpit-podman`** — the container UI —
+and enables `podman.socket` so the page works on first load. Quadlet-managed
+containers appear there for inspection, but their lifecycle stays owned by
+systemd. The Metrics/PCP integration is built into `cockpit-bridge` (Cockpit
+236+, which `Conflicts` with the obsolete standalone `cockpit-pcp`), so the kit
+does not install that package; for long-term history graphs, install the `pcp`
+daemon separately.
+
+The module **opens no firewall port**. Cockpit listens on `tcp/9090`, which
+stays blocked on the public interface by `ufw` default-deny, and is reachable
+**only over the tailnet**: Tailscale installs its own `ts-input` iptables chain
+that accepts traffic arriving on `tailscale0` ahead of the `ufw` chains, so
+tailnet peers reach `9090` without any explicit rule. Access it at
+`https://<tailnet-ip-or-name>:9090`.
+
+## Passwordless sudo
+
+`SUDO_NOPASSWD=yes` installs a validated `/etc/sudoers.d/99-cli-boot-kit-nopasswd`
+drop-in granting the target login user `NOPASSWD:ALL`. It exists to **pair with a
+login password**: Cockpit and console login authenticate the account through PAM,
+which a locked/passwordless cloud account cannot satisfy — but once you run
+`sudo passwd <user>`, `sudo` would start prompting. This module keeps `sudo`
+prompt-free after that. The drop-in is written to a dotted temp name (ignored by
+sudo's `includedir`), checked with `visudo -cf`, installed `0440 root:root`, then
+the whole config is re-checked with `visudo -c`, so an invalid file is never
+activated.
+
+**Security note:** this removes sudo reauthentication. It is **off by default**
+and should be enabled only on hosts where that policy is acceptable — single
+admin, key-only SSH (`PasswordAuthentication no`), no untrusted inbound exposure.
+The `ubuntu-gen`/`arm-oci` profiles enable it; the Fedora profiles do not. If a
+host copied from `ubuntu-gen` gains untrusted inbound access, set
+`SUDO_NOPASSWD=no`.
 
 ## Verify
 

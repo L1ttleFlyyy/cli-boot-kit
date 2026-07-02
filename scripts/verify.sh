@@ -188,6 +188,24 @@ main() {
         skip "fail2ban" "INSTALL_FAIL2BAN != yes"
     fi
 
+    section "Sudo"
+    if [ "${SUDO_NOPASSWD:-no}" != "yes" ]; then
+        skip "passwordless sudo" "SUDO_NOPASSWD != yes"
+    elif is_root; then
+        if [ -f /etc/sudoers.d/99-cli-boot-kit-nopasswd ]; then
+            pass "sudoers drop-in present"
+        else
+            fail "sudoers drop-in present"
+        fi
+        if sudo -l -U "$user" 2>/dev/null | grep -q "NOPASSWD: ALL"; then
+            pass "passwordless sudo effective for ${user}"
+        else
+            fail "passwordless sudo effective for ${user}"
+        fi
+    else
+        skip "passwordless sudo" "needs root"
+    fi
+
     section "Shell & dotfiles (user: ${user})"
     local login_shell
     login_shell="$(getent passwd "$user" | cut -d: -f7)"
@@ -294,6 +312,30 @@ main() {
         fi
     else
         skip "router-sysctl" "APPLY_ROUTER_SYSCTL != yes"
+    fi
+
+    section "Cockpit"
+    if [ "${INSTALL_COCKPIT:-no}" != "yes" ]; then
+        skip "cockpit" "INSTALL_COCKPIT != yes"
+    elif is_fedora; then
+        skip "cockpit" "Fedora ships Cockpit by default; not managed here"
+    else
+        check_cmd "cockpit.socket active" systemctl is-active --quiet cockpit.socket
+        if command -v ss >/dev/null 2>&1; then
+            if ss -H -tln 'sport = :9090' 2>/dev/null | grep -q .; then
+                pass "listening on tcp/9090"
+            else
+                fail "listening on tcp/9090"
+            fi
+        else
+            skip "listening on tcp/9090" "ss not available"
+        fi
+        if [ "${INSTALL_PODMAN_QUADLET:-no}" = "yes" ]; then
+            check_cmd "cockpit-podman installed" dpkg -s cockpit-podman
+            check_cmd "podman.socket active" systemctl is-active --quiet podman.socket
+        else
+            skip "cockpit-podman" "INSTALL_PODMAN_QUADLET != yes"
+        fi
     fi
 
     section "Timezone"

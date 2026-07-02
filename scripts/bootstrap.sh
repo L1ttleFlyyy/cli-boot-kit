@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/common.sh"
 
 STEP_CURRENT=0
-STEP_TOTAL=16
+STEP_TOTAL=18
 
 usage() {
     cat <<'USAGE'
@@ -101,6 +101,12 @@ main() {
     run_module bubblewrap.sh
     run_module developer-tools.sh
 
+    if [ "${SUDO_NOPASSWD:-no}" = "yes" ]; then
+        run_module sudo-nopasswd.sh
+    else
+        skip_step "sudo-nopasswd.sh"
+    fi
+
     if [ "${INSTALL_TAILSCALE:-no}" = "yes" ]; then
         run_module tailscale.sh
     else
@@ -117,6 +123,12 @@ main() {
         run_module router-sysctl.sh
     else
         skip_step "router-sysctl.sh"
+    fi
+
+    if [ "${INSTALL_COCKPIT:-no}" = "yes" ]; then
+        run_module cockpit.sh
+    else
+        skip_step "cockpit.sh"
     fi
 
     next_step "system update"
