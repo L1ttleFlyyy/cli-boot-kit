@@ -55,8 +55,8 @@ main() {
     configure_selinux_port "$ssh_port"
 
     log "Writing OpenSSH hardening drop-in"
-    run install -d -m 755 /etc/ssh/sshd_config.d
-    write_file /etc/ssh/sshd_config.d/10-cli-boot-kit.conf <<EOF
+    run install -d -m 755 "${SSHD_DROPIN%/*}"
+    write_file "$SSHD_DROPIN" <<EOF
 # Managed by cli-boot-kit/scripts/modules/ssh-hardening.sh
 Port ${ssh_port}
 PermitRootLogin no

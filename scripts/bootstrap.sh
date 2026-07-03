@@ -150,6 +150,12 @@ main() {
         info "Mode: dry-run"
     fi
 
+    # Refresh the apt index once and let the module child processes inherit the
+    # done-marker, instead of every module refreshing again in its own process.
+    # The whole bootstrap installs from this one index snapshot. No-op on dnf.
+    pkg_refresh
+    export APT_INDEX_UPDATED
+
     STEP_TOTAL="${#STEPS[@]}"
     local step
     for step in "${STEPS[@]}"; do

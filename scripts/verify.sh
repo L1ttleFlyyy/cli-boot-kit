@@ -114,7 +114,7 @@ main() {
     done
 
     section "SSH hardening"
-    local dropin="/etc/ssh/sshd_config.d/10-cli-boot-kit.conf"
+    local dropin="$SSHD_DROPIN"
     if [ -f "$dropin" ]; then
         pass "drop-in present: $dropin"
         if grep -qxF "Port ${SSH_PORT}" "$dropin"; then
@@ -159,6 +159,11 @@ main() {
                 else
                     fail "ufw allows ${SSH_PORT}/tcp"
                 fi
+                if ufw status verbose 2>/dev/null | grep -q "deny (routed)"; then
+                    pass "ufw default deny routed"
+                else
+                    fail "ufw default deny routed (re-run firewall.sh to converge)"
+                fi
             else
                 skip "ufw status" "needs root"
             fi
@@ -192,7 +197,7 @@ main() {
     if [ "${SUDO_NOPASSWD:-no}" != "yes" ]; then
         skip "passwordless sudo" "SUDO_NOPASSWD != yes"
     elif is_root; then
-        if [ -f /etc/sudoers.d/99-cli-boot-kit-nopasswd ]; then
+        if [ -f "$SUDO_NOPASSWD_DROPIN" ]; then
             pass "sudoers drop-in present"
         else
             fail "sudoers drop-in present"
@@ -335,6 +340,18 @@ main() {
             fi
         else
             skip "listening on tcp/9090" "ss not available"
+        fi
+        # 9090 must stay invisible from the public interface: no ufw rule ever
+        # names it (the cloud security list is the independent second lock).
+        # Tailnet reachability comes from ts-input, not from an open port.
+        if is_root && command -v ufw >/dev/null 2>&1; then
+            if ufw status 2>/dev/null | grep -q "9090"; then
+                fail "no ufw rule for tcp/9090 (Cockpit stays tailnet-only)"
+            else
+                pass "no ufw rule for tcp/9090 (Cockpit stays tailnet-only)"
+            fi
+        else
+            skip "no ufw rule for tcp/9090" "needs root and ufw"
         fi
         if [ "${INSTALL_PODMAN_QUADLET:-no}" = "yes" ]; then
             check_cmd "cockpit-podman installed" dpkg -s cockpit-podman

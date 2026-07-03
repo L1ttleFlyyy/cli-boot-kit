@@ -121,11 +121,58 @@ home_for_user() {
     getent passwd "$user" | cut -d: -f6
 }
 
+# Files and directories managed by cli-boot-kit that more than one script must
+# name (the writer module and verify.sh). Shared here so a rename cannot leave
+# the writer and the checker pointing at different paths.
+# shellcheck disable=SC2034  # consumed by sourcing scripts
+SSHD_DROPIN="/etc/ssh/sshd_config.d/10-cli-boot-kit.conf"
+# shellcheck disable=SC2034  # consumed by sourcing scripts
+SUDO_NOPASSWD_DROPIN="/etc/sudoers.d/99-cli-boot-kit-nopasswd"
+
+# Every key a profile layer (config/defaults.env, config/ssh.env,
+# profiles/<name>.env) is allowed to set. lint_profile_keys rejects anything
+# else, so a typo'd toggle (e.g. INSTALL_TAILSCLE=yes) fails fast instead of
+# silently no-oping through both bootstrap and verify — they would otherwise
+# read the same misspelled variable and agree with each other. Adding a new
+# profile key starts by declaring it here.
+KNOWN_PROFILE_KEYS=(
+    APPLY_ROUTER_SYSCTL
+    CHEZMOI_REPO
+    DEFAULT_SHELL
+    INSTALL_CLAUDE
+    INSTALL_COCKPIT
+    INSTALL_CODEX
+    INSTALL_FAIL2BAN
+    INSTALL_PODMAN_QUADLET
+    INSTALL_TAILSCALE
+    SSH_PORT
+    SUDO_NOPASSWD
+    TAILSCALE_NETDEV
+    TIMEZONE
+    TRUSTED_TAILNET_CIDR
+)
+
+# lint_profile_keys FILE — die when FILE assigns a variable outside
+# KNOWN_PROFILE_KEYS. Profile layers are shell-safe key=value by convention,
+# so a line-anchored regex is enough to enumerate the assignments.
+lint_profile_keys() {
+    local file="$1"
+    local key
+    while IFS= read -r key; do
+        key="${key%=}"
+        case " ${KNOWN_PROFILE_KEYS[*]} " in
+            *" $key "*) ;;
+            *) die "unknown key '$key' in $file; fix the typo or add it to KNOWN_PROFILE_KEYS in scripts/lib/common.sh" ;;
+        esac
+    done < <(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$file")
+}
+
 # Source config/defaults.env into the environment when present.
 load_defaults() {
     local root
     root="$(repo_root)"
     if [ -r "$root/config/defaults.env" ]; then
+        lint_profile_keys "$root/config/defaults.env"
         # shellcheck disable=SC1091
         . "$root/config/defaults.env"
     fi
@@ -146,6 +193,7 @@ load_profile() {
     # Fallback baselines (lowest precedence).
     load_defaults
     if [ -r "$root/config/ssh.env" ]; then
+        lint_profile_keys "$root/config/ssh.env"
         # shellcheck disable=SC1091
         . "$root/config/ssh.env"
     fi
@@ -157,6 +205,7 @@ load_profile() {
     [ -r "$path" ] || die "profile not found: $path (expected profiles/<name>.env)"
 
     # Profile overlay (highest precedence).
+    lint_profile_keys "$path"
     # shellcheck disable=SC1090
     . "$path"
     PROFILE_NAME="$name"

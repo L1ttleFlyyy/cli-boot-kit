@@ -9,7 +9,11 @@
 OS_ID=""
 OS_ID_LIKE=""
 OS_VERSION_ID=""
-APT_INDEX_UPDATED="no"
+# Deduplicates apt-get update. Inherited from the environment so bootstrap.sh
+# can refresh once up front and export it — modules run as child processes, so
+# without the inherit each of them would re-run apt-get update. A module run
+# standalone still refreshes on first use.
+APT_INDEX_UPDATED="${APT_INDEX_UPDATED:-no}"
 
 # apt fails immediately when another apt/dpkg holds the lock instead of
 # waiting. A fresh boot routinely races the apt-daily / unattended-upgrades

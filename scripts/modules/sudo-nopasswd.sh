@@ -24,10 +24,10 @@ usage() {
 
 parse_runtime_args "$@"
 
-DROPIN=/etc/sudoers.d/99-cli-boot-kit-nopasswd
+DROPIN="$SUDO_NOPASSWD_DROPIN"
 # Leading dot => sudo's includedir skips it, so a half-written temp is never
 # loaded; validated with `visudo -cf` before it is installed under the real name.
-DROPIN_TMP=/etc/sudoers.d/.99-cli-boot-kit-nopasswd.tmp
+DROPIN_TMP="${DROPIN%/*}/.${DROPIN##*/}.tmp"
 
 main() {
     if [ "$DRY_RUN" != "yes" ]; then

@@ -47,7 +47,14 @@ setup_ufw() {
     log "Configuring ufw default policy"
     run ufw default deny incoming
     run ufw default allow outgoing
-    run ufw default allow routed
+    # Forwarding policy governs only pass-through packets the kernel routes
+    # between interfaces (dst IP is not this host). Userspace relays (SOCKS/HTTP
+    # proxies, xray-style VPN servers) terminate locally and re-originate, so
+    # they traverse INPUT/OUTPUT, never FORWARD — unaffected by this. The one
+    # forwarding consumer, the Tailscale exit node, is accepted by tailscaled's
+    # own ts-forward chain ahead of the ufw chains, so deny here fails closed:
+    # tailscaled down means the host forwards nothing.
+    run ufw default deny routed
 
     # Allow the SSH port before enabling so we never lock ourselves out.
     log "Allowing SSH port $ssh_port/tcp"

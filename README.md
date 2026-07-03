@@ -112,6 +112,12 @@ cp profiles/ubuntu-gen.env profiles/myhost.env
 sudo ./scripts/bootstrap.sh myhost --dry-run
 ```
 
+Profile layers are **linted against an allowlist** before they are sourced:
+every key must appear in `KNOWN_PROFILE_KEYS` (`scripts/lib/common.sh`), so a
+typo'd toggle (`INSTALL_TAILSCLE=yes`) fails fast instead of silently no-oping
+through both bootstrap and verify. Introducing a new profile key starts by
+declaring it there.
+
 ## Modules
 
 Every module runs standalone with the same `<profile> [--dry-run]` signature:
@@ -151,7 +157,7 @@ Recommended order and platform behavior:
 | --- | --- | --- | --- |
 | `base-packages.sh` | dnf, `procps-ng gcc gcc-c++ make` | apt, `procps build-essential` | Run first. |
 | `ssh-hardening.sh` | SELinux `ssh_port_t`, firewalld, restart `sshd` | no SELinux, ufw rule, restart `ssh.socket` | Reads `SSH_PORT` from profile + `authorized_keys`. |
-| `firewall.sh` | firewalld baseline | ufw default-deny, allow `SSH_PORT` then enable | Allows SSH before enabling to avoid lockout. |
+| `firewall.sh` | firewalld baseline | ufw default-deny in/routed, allow `SSH_PORT` then enable | Allows SSH before enabling to avoid lockout. `deny routed` is safe for the exit node (ts-forward precedes ufw) and for userspace proxies (they never traverse FORWARD). |
 | `fail2ban.sh` | `fail2ban-firewalld`, firewalld action | `banaction = ufw` | Optional (`INSTALL_FAIL2BAN`, default on). sshd jail on `SSH_PORT`; ignores tailnet. |
 | `homebrew.sh` | Linuxbrew as target user | same | After base packages. |
 | `brew-bundle.sh` | `Brewfile` | same | After Homebrew. |
@@ -209,12 +215,18 @@ systemd. The Metrics/PCP integration is built into `cockpit-bridge` (Cockpit
 does not install that package; for long-term history graphs, install the `pcp`
 daemon separately.
 
-The module **opens no firewall port**. Cockpit listens on `tcp/9090`, which
-stays blocked on the public interface by `ufw` default-deny, and is reachable
-**only over the tailnet**: Tailscale installs its own `ts-input` iptables chain
-that accepts traffic arriving on `tailscale0` ahead of the `ufw` chains, so
-tailnet peers reach `9090` without any explicit rule. Access it at
-`https://<tailnet-ip-or-name>:9090`.
+The module **opens no firewall port**. Cockpit listens on `tcp/9090`, and the
+public path to it is protected by **two independent locks plus the password**:
+on cloud hosts, `ufw` default-deny *and* the provider's security list (OCI)
+would both have to be opened; on home hosts, the upstream router does not
+port-forward 9090. Even then, Cockpit still requires the account password
+(PAM). Reachability comes from trusted networks only: Tailscale's own
+`ts-input` iptables chain accepts traffic arriving on `tailscale0` ahead of
+the `ufw` chains, so tailnet peers reach `9090` without any explicit rule —
+access it at `https://<tailnet-ip-or-name>:9090`. On Fedora hosts sitting on a
+trusted LAN (beelink), the default firewalld zone admitting the `cockpit`
+service is deliberate: the LAN is inside the boundary there. `verify.sh`
+asserts that no `ufw` rule ever names 9090.
 
 ## Passwordless sudo
 
@@ -231,8 +243,10 @@ activated.
 **Security model:** the account password is *not* the security boundary here —
 the firewall is. What protects these hosts is reachability, not passwords:
 
-- The management panel (Cockpit, `tcp/9090`) is **never opened publicly**. `ufw`
-  default-deny blocks it and only the tailnet can reach it.
+- The management panel (Cockpit, `tcp/9090`) is **never opened publicly** —
+  two independent locks (`ufw` default-deny *and* the cloud security list /
+  home router) sit on the public path, and the PAM password is still required
+  behind them. Only trusted networks (tailnet; the LAN on home hosts) reach it.
 - SSH is **always key-only** (`PasswordAuthentication no`); password login is
   never enabled. The login password therefore only serves Cockpit/console PAM.
 
@@ -264,8 +278,8 @@ Durable design rules for anyone extending the kit:
 
 - **The firewall is the security boundary, not passwords.** Management surfaces
   are protected by reachability: Cockpit (`tcp/9090`) is never opened publicly
-  and is reachable only over the tailnet, and SSH is always key-only
-  (`PasswordAuthentication no`). Account passwords exist only for PAM
+  and is reachable only from trusted networks (the tailnet; on home hosts also
+  the LAN), and SSH is always key-only (`PasswordAuthentication no`). Account passwords exist only for PAM
   (Cockpit/console), not as the thing keeping the host safe — which is why
   passwordless sudo is an accepted setting on these hosts rather than a
   regression.
