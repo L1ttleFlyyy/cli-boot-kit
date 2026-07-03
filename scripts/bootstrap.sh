@@ -7,7 +7,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/common.sh"
 
 STEP_CURRENT=0
-STEP_TOTAL=18
+STEP_TOTAL=0 # derived from STEPS in main()
+
+# Ordered bootstrap steps; STEP_TOTAL is derived from this array, so adding a
+# step here is the only change needed. Module entries are "name.sh" (always
+# runs) or "name.sh:TOGGLE_VAR:default" (runs when the profile resolves the
+# toggle to yes, otherwise shown as a skipped step). "timezone",
+# "system-update" and "verify" dispatch to local functions.
+STEPS=(
+    timezone
+    base-packages.sh
+    ssh-hardening.sh
+    firewall.sh
+    "fail2ban.sh:INSTALL_FAIL2BAN:yes"
+    homebrew.sh
+    brew-bundle.sh
+    chezmoi.sh
+    zsh.sh
+    bubblewrap.sh
+    developer-tools.sh
+    "sudo-nopasswd.sh:SUDO_NOPASSWD:no"
+    "tailscale.sh:INSTALL_TAILSCALE:no"
+    "podman-quadlet.sh:INSTALL_PODMAN_QUADLET:no"
+    "router-sysctl.sh:APPLY_ROUTER_SYSCTL:no"
+    "cockpit.sh:INSTALL_COCKPIT:no"
+    system-update
+    verify
+)
 
 usage() {
     cat <<'USAGE'
@@ -49,6 +75,45 @@ skip_step() {
     info "Skipped."
 }
 
+run_step() {
+    local spec="$1"
+
+    case "$spec" in
+        timezone)
+            apply_timezone
+            ;;
+        system-update)
+            next_step "system update"
+            system_upgrade
+            ;;
+        verify)
+            next_step "verify"
+            run_verify
+            ;;
+        *:*)
+            local module="${spec%%:*}" rest="${spec#*:}"
+            local toggle_var="${rest%%:*}" default="${rest##*:}"
+            if [ "${!toggle_var:-$default}" = "yes" ]; then
+                run_module "$module"
+            else
+                skip_step "$module"
+            fi
+            ;;
+        *)
+            run_module "$spec"
+            ;;
+    esac
+}
+
+run_verify() {
+    if [ "$DRY_RUN" = "yes" ]; then
+        info "Dry-run: skipping verify.sh. After a real run: scripts/verify.sh $PROFILE"
+    else
+        "$SCRIPT_DIR/verify.sh" "$PROFILE" ||
+            warn "verify.sh reported failures; review the summary above before relying on this host."
+    fi
+}
+
 apply_timezone() {
     next_step "timezone"
     local tz="${TIMEZONE:-}"
@@ -85,62 +150,11 @@ main() {
         info "Mode: dry-run"
     fi
 
-    apply_timezone
-    run_module base-packages.sh
-    run_module ssh-hardening.sh
-    run_module firewall.sh
-    if [ "${INSTALL_FAIL2BAN:-yes}" = "yes" ]; then
-        run_module fail2ban.sh
-    else
-        skip_step "fail2ban.sh"
-    fi
-    run_module homebrew.sh
-    run_module brew-bundle.sh
-    run_module chezmoi.sh
-    run_module zsh.sh
-    run_module bubblewrap.sh
-    run_module developer-tools.sh
-
-    if [ "${SUDO_NOPASSWD:-no}" = "yes" ]; then
-        run_module sudo-nopasswd.sh
-    else
-        skip_step "sudo-nopasswd.sh"
-    fi
-
-    if [ "${INSTALL_TAILSCALE:-no}" = "yes" ]; then
-        run_module tailscale.sh
-    else
-        skip_step "tailscale.sh"
-    fi
-
-    if [ "${INSTALL_PODMAN_QUADLET:-no}" = "yes" ]; then
-        run_module podman-quadlet.sh
-    else
-        skip_step "podman-quadlet.sh"
-    fi
-
-    if [ "${APPLY_ROUTER_SYSCTL:-no}" = "yes" ]; then
-        run_module router-sysctl.sh
-    else
-        skip_step "router-sysctl.sh"
-    fi
-
-    if [ "${INSTALL_COCKPIT:-no}" = "yes" ]; then
-        run_module cockpit.sh
-    else
-        skip_step "cockpit.sh"
-    fi
-
-    next_step "system update"
-    system_upgrade
-
-    next_step "verify"
-    if [ "$DRY_RUN" = "yes" ]; then
-        info "Dry-run: skipping verify.sh. After a real run: scripts/verify.sh $PROFILE"
-    else
-        "$SCRIPT_DIR/verify.sh" "$PROFILE" ||
-            warn "verify.sh reported failures; review the summary above before relying on this host."
-    fi
+    STEP_TOTAL="${#STEPS[@]}"
+    local step
+    for step in "${STEPS[@]}"; do
+        run_step "$step"
+    done
 
     if [ "$DRY_RUN" = "yes" ]; then
         success "Dry-run complete; reboot skipped."

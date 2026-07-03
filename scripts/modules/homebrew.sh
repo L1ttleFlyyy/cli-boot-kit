@@ -31,14 +31,16 @@ main() {
         return 0
     fi
 
-    # shellcheck disable=SC2016  # $() is intentionally evaluated later by run_eval
+    # Passed as a single argv element to `bash -lc`, so no nested-quoting layer
+    # to keep balanced; run() prints the exact string it executes.
+    # shellcheck disable=SC2016  # $() is intentionally evaluated by the login shell
     local install_cmd='NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
 
     log "Installing Homebrew for Linux as $user"
     if [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
-        run_eval "sudo -H -u $user bash -lc '$install_cmd'"
+        run sudo -H -u "$user" bash -lc "$install_cmd"
     else
-        run_eval "$install_cmd"
+        run bash -lc "$install_cmd"
     fi
 }
 

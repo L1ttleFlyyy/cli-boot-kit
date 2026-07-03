@@ -80,8 +80,11 @@ Specifics learned from real deploys (arm-oci, beelink):
 - **chezmoi overwrites to the declared state.** bootstrap runs
   `chezmoi init <repo> --apply --force`. If the host has local edits to managed
   dotfiles you want to keep, run `chezmoi diff` and resolve them first.
-- **Reboot.** The final `dnf/apt upgrade` may pull a new kernel; reboot when
-  convenient (`sudo systemctl reboot`).
+- **Reboot.** On Fedora the final `dnf upgrade` may pull a new kernel. On
+  Ubuntu the kit deliberately uses `apt-get upgrade` (never `dist-upgrade`),
+  which does not install new packages — new kernel ABI packages are held back,
+  keeping the host on its LTS kernel cadence. Reboot when convenient
+  (`sudo systemctl reboot`).
 - **Expect a green verify.** After a real apply, `verify.sh <profile>` should be
   all `[PASS]`. Running it *before* deploy naturally shows `[FAIL]`s (env-check).
 
@@ -283,6 +286,11 @@ Durable design rules for anyone extending the kit:
 - **Ubuntu networking assumes `systemd-networkd`.** On Debian/Ubuntu hosts the
   kit treats `systemd-networkd` as a precondition rather than managing or
   choosing the network stack itself.
+- **Official `curl | bash` installers are part of the trust base.** Homebrew,
+  chezmoi, Tailscale, Claude Code and Codex are installed from their vendors'
+  install scripts without checksumming. Accepted deliberately: these vendors
+  offer no stable pinned artifacts, and their install URLs are as much a part
+  of this kit's TCB as the firewall.
 
 ## References
 

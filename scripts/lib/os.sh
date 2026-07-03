@@ -11,6 +11,13 @@ OS_ID_LIKE=""
 OS_VERSION_ID=""
 APT_INDEX_UPDATED="no"
 
+# apt fails immediately when another apt/dpkg holds the lock instead of
+# waiting. A fresh boot routinely races the apt-daily / unattended-upgrades
+# timers (seen in the wild: bootstrap died mid-run on the dpkg frontend lock
+# while apt-daily.service was active), so every apt-get call waits up to this
+# many seconds for the lock. dnf queues on its own lock natively.
+APT_LOCK_TIMEOUT=300
+
 os_detect() {
     if [ -n "$OS_ID" ]; then
         return 0
@@ -66,7 +73,7 @@ pkg_refresh() {
     case "$(pkg_manager)" in
         apt)
             if [ "$APT_INDEX_UPDATED" != "yes" ]; then
-                run apt-get update
+                run apt-get -o "DPkg::Lock::Timeout=${APT_LOCK_TIMEOUT}" update
                 APT_INDEX_UPDATED="yes"
             fi
             ;;
@@ -81,7 +88,8 @@ pkg_install() {
             ;;
         apt)
             pkg_refresh
-            run env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+            run env DEBIAN_FRONTEND=noninteractive \
+                apt-get -o "DPkg::Lock::Timeout=${APT_LOCK_TIMEOUT}" install -y "$@"
             ;;
         *)
             die "no supported package manager (dnf/apt-get) found"
@@ -96,7 +104,8 @@ system_upgrade() {
             ;;
         apt)
             pkg_refresh
-            run env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+            run env DEBIAN_FRONTEND=noninteractive \
+                apt-get -o "DPkg::Lock::Timeout=${APT_LOCK_TIMEOUT}" upgrade -y
             ;;
         *)
             die "no supported package manager (dnf/apt-get) found"
@@ -124,6 +133,9 @@ firewall_kind() {
     fi
 }
 
+# Deliberate dry-run==apply exception: in dry-run this reports active so the
+# preview shows the firewall rules a real apply would add, even on a host where
+# firewalld has not been started yet.
 firewalld_active() {
     [ "${DRY_RUN:-no}" = "yes" ] || systemctl is-active --quiet firewalld
 }

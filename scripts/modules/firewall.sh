@@ -66,11 +66,20 @@ setup_firewalld() {
         pkg_install firewalld
     fi
 
+    # Allow SSH in the permanent config BEFORE starting the daemon (same
+    # never-lock-ourselves-out order as the ufw path): sshd already listens on
+    # $ssh_port from the previous module, and firewalld's default zone only
+    # admits the stock ssh service (22). Enabling first would leave new SSH
+    # connections blocked if anything fails between enable and allow.
+    log "Allowing SSH port $ssh_port/tcp"
+    if systemctl is-active --quiet firewalld; then
+        firewall_allow_port "$ssh_port" tcp
+    else
+        run firewall-offline-cmd --add-port="${ssh_port}/tcp"
+    fi
+
     log "Enabling firewalld"
     run systemctl enable --now firewalld
-
-    log "Allowing SSH port $ssh_port/tcp"
-    firewall_allow_port "$ssh_port" tcp
     run firewall-cmd --list-all
 }
 

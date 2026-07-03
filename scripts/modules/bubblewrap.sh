@@ -33,13 +33,29 @@ main() {
         install_apparmor_profile
     fi
 
-    log "Verifying bubblewrap"
+    # Verify as the target user, not root: kernel.apparmor_restrict_unprivileged_userns
+    # only restricts unprivileged users, so a root check passes even when the
+    # AppArmor profile failed to load — and the whole point of this module is
+    # unprivileged sandboxing.
+    local user
+    user="$(target_user)"
+    log "Verifying bubblewrap (as $user)"
     if [ "$DRY_RUN" = "yes" ]; then
         show_command bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true
-    elif bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true; then
-        success "bwrap user namespace sandbox works"
+    elif bwrap_works_for "$user"; then
+        success "bwrap user namespace sandbox works for $user"
     else
-        die "bwrap verification failed; check AppArmor unprivileged userns restriction"
+        die "bwrap verification failed for $user; check AppArmor unprivileged userns restriction"
+    fi
+}
+
+bwrap_works_for() {
+    local user="$1"
+
+    if [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
+        sudo -H -u "$user" bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true
+    else
+        bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true
     fi
 }
 

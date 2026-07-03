@@ -226,7 +226,13 @@ main() {
     fi
 
     section "Sandbox & developer CLIs"
-    check_cmd "bwrap user-namespace sandbox" bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true
+    # As the target user: root bypasses the AppArmor unprivileged-userns
+    # restriction, so a root check would pass even with the profile missing.
+    if as_user "$user" "bwrap --unshare-user --uid 0 --gid 0 --ro-bind / / true"; then
+        pass "bwrap user-namespace sandbox (as ${user})"
+    else
+        fail "bwrap user-namespace sandbox (as ${user})"
+    fi
     if [ "${INSTALL_CLAUDE:-no}" = "yes" ]; then
         if as_user "$user" "command -v claude"; then
             pass "Claude Code available for ${user}"

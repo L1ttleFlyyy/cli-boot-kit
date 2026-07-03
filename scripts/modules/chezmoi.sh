@@ -50,6 +50,8 @@ main() {
     user="$(target_user)"
     repo="${CHEZMOI_REPO:-l1ttleflyyy}"
 
+    # Deliberate dry-run==apply exception: dry-run always previews the install
+    # path even when chezmoi is present, so a fresh-host preview is complete.
     if [ "$DRY_RUN" = "yes" ] || ! user_has_chezmoi "$user"; then
         if [ "$DRY_RUN" != "yes" ]; then
             log "chezmoi not found on PATH; installing"

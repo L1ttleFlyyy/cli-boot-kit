@@ -86,7 +86,12 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
     run systemctl daemon-reload
-    run systemctl enable --now tailscale-network-optimize.service
+    run systemctl enable tailscale-network-optimize.service
+    # restart, not `enable --now`: the unit is a RemainAfterExit oneshot, and
+    # `--now` on an already-active one does not re-run ExecStart — a changed
+    # TAILSCALE_NETDEV would update the unit file but not the live NIC settings
+    # until reboot.
+    run systemctl restart tailscale-network-optimize.service
 
     # Allow inbound to Tailscale's default UDP port so peers can establish direct
     # connections (NAT hole punching) instead of falling back to a DERP relay.

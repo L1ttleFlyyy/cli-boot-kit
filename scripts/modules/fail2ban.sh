@@ -54,9 +54,21 @@ EOF
     run systemctl enable fail2ban
     run systemctl restart fail2ban
     if [ "$DRY_RUN" != "yes" ]; then
-        sleep 2
+        wait_for_sshd_jail
         run fail2ban-client status sshd
     fi
+}
+
+# The client socket comes up asynchronously after restart; poll instead of a
+# fixed sleep so a slow start doesn't abort the whole bootstrap via set -e.
+wait_for_sshd_jail() {
+    local tries=0
+    until fail2ban-client status sshd >/dev/null 2>&1; do
+        tries=$((tries + 1))
+        [ "$tries" -lt 15 ] ||
+            die "fail2ban sshd jail not up after 15s; check: fail2ban-client status sshd"
+        sleep 1
+    done
 }
 
 main "$@"

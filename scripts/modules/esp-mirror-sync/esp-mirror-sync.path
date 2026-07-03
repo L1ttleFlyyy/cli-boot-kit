@@ -6,6 +6,9 @@ ConditionPathExists=/boot/efi/EFI
 RequiresMountsFor=/boot/efi
 
 [Path]
+# PathChanged= is not recursive: only these directories themselves are watched.
+# The stock Fedora ESP layout has no deeper subdirectories; if one appears,
+# changes inside it will not trigger a sync until it is listed here too.
 PathChanged=/boot/efi/EFI
 PathChanged=/boot/efi/EFI/BOOT
 PathChanged=/boot/efi/EFI/fedora

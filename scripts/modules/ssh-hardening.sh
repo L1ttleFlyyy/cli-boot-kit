@@ -95,6 +95,9 @@ configure_selinux_port() {
     fi
 
     log "Allowing SSH port $ssh_port in SELinux"
+    # Deliberate dry-run==apply exception: the apply path below runs semanage
+    # directly (not via run) because it branches on live semanage state that a
+    # dry-run host may not have; dry-run previews the plain add form instead.
     # `semanage port -l` prints: "<type>  <proto>  <port>[, <port>...]", so the
     # proto is field 2 and ports are fields 3..NF (comma-separated).
     if [ "$DRY_RUN" = "yes" ]; then
@@ -136,7 +139,8 @@ ensure_authorized_keys() {
     while IFS= read -r line; do
         [ -n "$line" ] || break
         case "$line" in
-            ssh-*|ecdsa-*)
+            # sk-* are FIDO/U2F security-key types (sk-ssh-ed25519@…, sk-ecdsa-…).
+            ssh-*|ecdsa-*|sk-ssh-*|sk-ecdsa-*)
                 printf '%s\n' "$line" >> "$keys_file"
                 count=$((count + 1))
                 ;;

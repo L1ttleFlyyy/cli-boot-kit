@@ -68,7 +68,8 @@ main() {
     log "Installing Cockpit (${pkgs[*]}) from ${codename}-backports"
     pkg_refresh
     run env DEBIAN_FRONTEND=noninteractive \
-        apt-get install -y -t "${codename}-backports" "${pkgs[@]}"
+        apt-get -o "DPkg::Lock::Timeout=${APT_LOCK_TIMEOUT}" \
+        install -y -t "${codename}-backports" "${pkgs[@]}"
 
     run systemctl enable --now cockpit.socket
 

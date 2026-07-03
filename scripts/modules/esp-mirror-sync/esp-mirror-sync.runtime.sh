@@ -142,8 +142,10 @@ cleanup() {
 sync_mirror() {
     validate_devices
     with_lock
-    mount_mirror sync
+    # trap before mount: a signal landing between the two would otherwise
+    # leave the mirror mounted (cleanup no-ops while MOUNTED_BY_US is unset).
     trap cleanup EXIT
+    mount_mirror sync
 
     log "syncing $PRIMARY_ESP/ to UUID=$MIRROR_ESP_UUID at $MIRROR_TARGET"
     "$RSYNC_BIN" \
@@ -161,8 +163,8 @@ sync_mirror() {
 check_mirror() {
     validate_devices
     with_lock
-    mount_mirror check
     trap cleanup EXIT
+    mount_mirror check
 
     local changes
     changes="$("$RSYNC_BIN" \

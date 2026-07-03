@@ -21,7 +21,10 @@ main() {
 
     if [ "${EUID}" -eq 0 ] && [ "$user" != "root" ]; then
         log "Installing Homebrew packages from Brewfile as $user"
-        run_eval "sudo -H -u $user bash -lc 'eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"; brew bundle --file \"$root/Brewfile\"'"
+        # %q-quote the path so a space/quote in the repo path cannot change the
+        # command's meaning inside the login shell.
+        run sudo -H -u "$user" bash -lc \
+            "eval \"\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)\"; brew bundle --file $(printf '%q' "$root/Brewfile")"
         return 0
     fi
 

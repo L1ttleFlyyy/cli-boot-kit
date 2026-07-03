@@ -208,12 +208,17 @@ confirm() {
         suffix="[y/N]"
     fi
 
-    if [ -t 0 ]; then
-        printf '\a' >&2
+    # Consent needs a terminal. Without one, read hits EOF and would fall
+    # through to the default — for "Reboot now?" (default yes) that made a
+    # non-interactive bootstrap reboot the host. Answer "no" instead.
+    if [ ! -t 0 ]; then
+        warn "stdin is not a terminal; answering no: $prompt"
+        return 1
     fi
+    printf '\a' >&2
 
     printf '%s?%s %s %s ' "$COLOR_BOLD" "$COLOR_RESET" "$prompt" "$suffix"
-    read -r answer
+    read -r answer || return 1
     case "$answer" in
         y|Y|yes|YES)
             return 0
