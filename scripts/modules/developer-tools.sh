@@ -67,8 +67,10 @@ main() {
     fi
 
     if [ "${INSTALL_CODEX:-yes}" = "yes" ]; then
+        # CODEX_NON_INTERACTIVE: the installer prompts "Start Codex now?" on
+        # /dev/tty, which reaches the terminal even through this pipe.
         install_tool "$user" "Codex CLI" codex \
-            'curl -fsSL https://chatgpt.com/codex/install.sh | sh'
+            'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh'
     fi
 }
 

@@ -112,6 +112,13 @@ main() {
     for cmd in git zsh curl; do
         check_cmd "$cmd on PATH" command -v "$cmd"
     done
+    # SSH clients forward LANG/LC_*=en_US.UTF-8 (sshd AcceptEnv); if the locale
+    # is missing server-side every shell prints setlocale warnings.
+    if locale -a 2>/dev/null | grep -qix 'en_US.utf8'; then
+        pass "en_US.UTF-8 locale generated"
+    else
+        fail "en_US.UTF-8 locale generated (re-run base-packages.sh)"
+    fi
 
     section "SSH hardening"
     local dropin="$SSHD_DROPIN"
