@@ -55,12 +55,30 @@ is_debian_like() {
     [ "$OS_ID" = "ubuntu" ]
 }
 
+# Fedora Atomic derivatives (Bazzite, Kinoite, other uBlue images): rpm-ostree
+# images with ID_LIKE=fedora and no dnf package flow. Only the user-level
+# modules (homebrew, brew-bundle, chezmoi, developer-tools) support them.
+is_fedora_atomic() {
+    os_detect
+    [ -e /run/ostree-booted ] || return 1
+    case " $OS_ID $OS_ID_LIKE " in
+        *" fedora "*) return 0 ;;
+    esac
+    return 1
+}
+
+# require_supported_os [--allow-atomic] — user-level modules pass
+# --allow-atomic; system modules (dnf/apt, SSH, firewall) keep rejecting
+# Fedora Atomic hosts.
 require_supported_os() {
     os_detect
     if is_fedora || is_debian_like; then
         return 0
     fi
-    die "unsupported OS: ID=${OS_ID:-unknown}; cli-boot-kit targets Fedora and Debian/Ubuntu"
+    if [ "${1:-}" = "--allow-atomic" ] && is_fedora_atomic; then
+        return 0
+    fi
+    die "unsupported OS: ID=${OS_ID:-unknown}; cli-boot-kit targets Fedora and Debian/Ubuntu (user-level modules also accept Fedora Atomic)"
 }
 
 pkg_manager() {
