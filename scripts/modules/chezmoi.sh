@@ -42,7 +42,7 @@ user_has_chezmoi() {
 }
 
 main() {
-    require_supported_os
+    require_supported_os --allow-atomic
     load_profile "$PROFILE"
 
     local user

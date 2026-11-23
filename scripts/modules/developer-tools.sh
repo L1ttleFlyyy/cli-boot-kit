@@ -53,7 +53,7 @@ install_tool() {
 }
 
 main() {
-    require_supported_os
+    require_supported_os --allow-atomic
     require_command curl
     load_profile "$PROFILE"
 

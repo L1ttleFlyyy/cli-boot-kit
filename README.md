@@ -258,6 +258,26 @@ merely reachable — the exposure is controlled at the firewall, not the sudo
 prompt. It stays `off` in `config/defaults.env` only so that enabling it remains
 an explicit per-host choice; the `ubuntu-gen`/`arm-oci` profiles turn it on.
 
+## Fedora Atomic (Bazzite)
+
+Fedora Atomic images (Bazzite, Kinoite and other uBlue images: rpm-ostree,
+`ID_LIKE=fedora`, `/run/ostree-booted`) have no dnf package flow, so only the
+**user-level modules** support them: `homebrew.sh`, `brew-bundle.sh`,
+`chezmoi.sh`, `developer-tools.sh`. `bootstrap.sh`, `verify.sh` and the system
+modules keep rejecting these hosts. System configuration for such a host belongs
+in its own repo, which vendors this kit and calls the four modules with the
+`bazzite` profile:
+
+```bash
+for m in homebrew brew-bundle chezmoi developer-tools; do
+    ./scripts/modules/$m.sh bazzite      # as the target user; sudo also works
+done
+```
+
+The `Brewfile` installs `zsh` from Homebrew only on ostree hosts, since the
+image ships none. `zsh.sh` is not used there (`chsh` to a Homebrew shell is not
+supported on Bazzite); the terminal profile launches Homebrew's zsh instead.
+
 ## Verify
 
 `verify.sh` checks a host against its profile and prints a grouped

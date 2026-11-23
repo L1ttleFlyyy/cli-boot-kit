@@ -44,3 +44,6 @@ brew "tmux-mem-cpu-load"
 brew "tree-sitter-cli"
 # Extremely fast Python package installer and resolver, written in Rust
 brew "uv"
+# Z shell. Fedora Atomic images (Bazzite) ship no zsh and cannot dnf-install
+# it, so Homebrew provides it there; other hosts use the distro package.
+brew "zsh" if File.exist?("/run/ostree-booted")

@@ -13,7 +13,7 @@ usage() {
 parse_runtime_args "$@"
 
 main() {
-    require_supported_os
+    require_supported_os --allow-atomic
     load_profile "$PROFILE"
     require_command curl
     require_command bash
